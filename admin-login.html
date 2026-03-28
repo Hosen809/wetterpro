@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login – WeatherPro</title>
+  <link rel="stylesheet" href="css/admin.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <div class="login-page">
+    <div class="login-box">
+      <!-- Logo -->
+      <div class="login-logo">
+        <i class="fas fa-cloud-sun"></i>
+        <h1>WeatherPro</h1>
+        <p>Administration Panel</p>
+      </div>
+
+      <div style="text-align:center; margin-bottom:28px;">
+        <span class="login-badge">
+          <i class="fas fa-shield-alt"></i> Secure Admin Access
+        </span>
+      </div>
+
+      <!-- Form -->
+      <form id="loginForm" autocomplete="off">
+        <div class="form-group">
+          <label for="username"><i class="fas fa-user" style="margin-right:6px;"></i>Username</label>
+          <div class="input-wrapper">
+            <i class="fas fa-at"></i>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              placeholder="Enter your username"
+              autocomplete="username"
+            >
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="password"><i class="fas fa-lock" style="margin-right:6px;"></i>Password</label>
+          <div class="input-wrapper">
+            <i class="fas fa-key"></i>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+            >
+            <button type="button" class="toggle-pw" id="togglePw" title="Show/hide password">
+              <i class="fas fa-eye" id="togglePwIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="login-btn" id="loginBtn">
+          <i class="fas fa-sign-in-alt"></i>
+          <span>Sign In to Dashboard</span>
+        </button>
+
+        <div class="login-error" id="loginError">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span id="loginErrorMsg">Invalid username or password.</span>
+        </div>
+      </form>
+
+      <a href="index.html" class="back-link">
+        <i class="fas fa-arrow-left" style="margin-right:6px;"></i>Back to WeatherPro
+      </a>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

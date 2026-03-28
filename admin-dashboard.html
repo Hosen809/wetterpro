@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard – WeatherPro</title>
+  <link rel="stylesheet" href="css/admin.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <!-- Loading overlay -->
+  <div class="dash-loading" id="dashLoading">
+    <div class="spinner"></div>
+    <p>Loading dashboard data…</p>
+  </div>
+
+  <!-- Header -->
+  <header class="dash-header">
+    <div class="container">
+      <div class="dash-logo">
+        <i class="fas fa-cloud-sun"></i>
+        <span>WeatherPro</span>
+        <small>ADMIN</small>
+      </div>
+      <nav class="dash-nav">
+        <a href="index.html" class="back-home">
+          <i class="fas fa-globe"></i> Public Site
+        </a>
+        <button class="logout-btn" id="logoutBtn">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main dashboard -->
+  <main class="dash-main">
+    <div class="container">
+
+      <!-- Welcome -->
+      <div class="dash-welcome">
+        <h2>Welcome back, <span style="background:var(--grad-blue);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Admin</span> 👋</h2>
+        <p>Here's your WeatherPro analytics overview &bull; <span id="dashDateTime"></span></p>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-search"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statTotalSearches">–</div>
+            <div class="stat-label">Total Searches</div>
+            <div class="stat-sub" id="statTodaySearches">– today</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><i class="fas fa-city"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statUniqueCities">–</div>
+            <div class="stat-label">Unique Cities</div>
+            <div class="stat-sub" id="statTopCity">– most searched</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-users"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statVisitors">–</div>
+            <div class="stat-label">Total Visitors</div>
+            <div class="stat-sub" id="statTodayVisitors">– today</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><i class="fas fa-chart-line"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statAvgPerVisitor">–</div>
+            <div class="stat-label">Searches / Visitor</div>
+            <div class="stat-sub">avg. engagement</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two-column panels -->
+      <div class="dash-panels">
+
+        <!-- Top Cities -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3><i class="fas fa-fire"></i> Top Cities</h3>
+            <span class="panel-badge" id="citiesCount">–</span>
+          </div>
+          <div class="city-list" id="cityList">
+            <div class="table-empty">
+              <i class="fas fa-map-marker-alt"></i>
+              <p>No data yet</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visitor chart -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3><i class="fas fa-chart-bar"></i> Daily Searches (Last 7 Days)</h3>
+          </div>
+          <canvas id="visitChart"></canvas>
+          <p style="text-align:center;color:var(--text-muted);font-size:.8rem;margin-top:14px;" id="chartNote"></p>
+        </div>
+
+      </div>
+
+      <!-- Recent Searches table -->
+      <div class="panel dash-panel-full">
+        <div class="panel-header">
+          <h3><i class="fas fa-history"></i> Recent Searches</h3>
+          <button class="refresh-btn" id="refreshBtn">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+        </div>
+        <div class="search-table-wrap">
+          <table class="search-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>City</th>
+                <th>Country</th>
+                <th>Temp</th>
+                <th>Condition</th>
+                <th>Humidity</th>
+                <th>Wind</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="searchTableBody">
+              <tr>
+                <td colspan="8" class="table-empty">
+                  <i class="fas fa-database"></i>
+                  <p>No searches recorded yet</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
