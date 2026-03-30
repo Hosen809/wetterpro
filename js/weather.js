@@ -1,220 +1,649 @@
 /* ============================================================
-   WeatherPro – weather.js
-   Handles: search, current weather, 5-day forecast, UV Index,
-            live clock, Supabase tracking, recent searches
+   WeatherPro – Complete JavaScript
+   Better than BBC Weather & wetter.de
    ============================================================ */
 
 // ── Supabase ──────────────────────────────────────────────────
 let supabaseClient = null;
 try {
   supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-} catch (e) {
-  console.warn('Supabase init failed:', e.message);
-}
+} catch (e) { console.warn('Supabase init failed:', e.message); }
 
 function getVisitorId() {
-  let id = localStorage.getItem('wp_visitor_id');
+  let id = localStorage.getItem('wp_vid');
   if (!id) {
     id = 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-    localStorage.setItem('wp_visitor_id', id);
+    localStorage.setItem('wp_vid', id);
   }
   return id;
 }
-
 async function trackPageVisit() {
   if (!supabaseClient) return;
-  try {
-    await supabaseClient.from('page_visits').insert({ visitor_id: getVisitorId() });
-  } catch (e) { /* silent */ }
+  try { await supabaseClient.from('page_visits').insert({ visitor_id: getVisitorId() }); } catch (_) {}
 }
 
-// ── State ─────────────────────────────────────────────────────
-let currentWeather = null;
-let currentUnit = 'C';
+// ── Global State ──────────────────────────────────────────────
+let currentWeatherData = null; // { weather, forecast }
+let currentUnit        = 'C';
+let lastCity           = '';
+let cityTimezone       = 0;
+let tempChartInstance  = null;
+let currentWxState     = '';
+let clockInterval      = null;
 
 // ── DOM helper ────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
-// ── Live Clock ────────────────────────────────────────────────
-function updateClock() {
-  const now = new Date();
-  const dateEl = $('heroDate');
-  const timeEl = $('heroTime');
-  if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+// ══════════════════════════════════════════════════════════════
+// LIVE CLOCK  (shows local time of searched city)
+// ══════════════════════════════════════════════════════════════
+function startClock(tzOffsetSeconds) {
+  cityTimezone = tzOffsetSeconds;
+  if (clockInterval) clearInterval(clockInterval);
+  function tick() {
+    const now   = new Date();
+    const local = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + cityTimezone * 1000);
+    const h = local.getHours().toString().padStart(2, '0');
+    const m = local.getMinutes().toString().padStart(2, '0');
+    const s = local.getSeconds().toString().padStart(2, '0');
+    const el = $('heroTime');
+    if (el) el.textContent = `${h}:${m}:${s}`;
+  }
+  tick();
+  clockInterval = setInterval(tick, 1000);
 }
 
-// ── Show / hide UI states ─────────────────────────────────────
-function showState(state) {
-  $('loading').classList.remove('visible');
-  $('errorCard').classList.remove('visible');
-  $('weatherCard').classList.remove('visible');
+// ══════════════════════════════════════════════════════════════
+// DYNAMIC WEATHER BACKGROUNDS
+// ══════════════════════════════════════════════════════════════
+function getWeatherState(iconCode) {
+  if (!iconCode) return 'default';
+  const c     = iconCode.slice(0, 2);
+  const night = iconCode.endsWith('n');
+  if (c === '01') return night ? 'night' : 'sunny';
+  if (['02','03','04'].includes(c)) return night ? 'night-cloudy' : 'cloudy';
+  if (['09','10'].includes(c)) return 'rainy';
+  if (c === '11') return 'thunder';
+  if (c === '13') return 'snowy';
+  if (c === '50') return 'mist';
+  return 'default';
+}
 
-  if (state === 'loading') $('loading').classList.add('visible');
-  if (state === 'error')   $('errorCard').classList.add('visible');
-  if (state === 'weather') {
-    $('weatherCard').classList.add('visible');
-    setTimeout(() => {
-      $('weatherCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 120);
+function applyWeatherState(state) {
+  const hero   = $('heroScreen');
+  const states = ['sunny','night','cloudy','night-cloudy','rainy','thunder','snowy','mist'];
+  states.forEach(s => hero.classList.remove('wx-' + s));
+  if (state !== 'default') hero.classList.add('wx-' + state);
+  currentWxState = state;
+
+  // Clear old particles
+  $('wxRainLayer').innerHTML  = '';
+  $('wxSnowLayer').innerHTML  = '';
+  $('wxStarsLayer').innerHTML = '';
+
+  // Generate new particles
+  if (state === 'rainy')                        generateRain(100);
+  if (state === 'thunder')                      generateRain(60);
+  if (state === 'snowy')                        generateSnow();
+  if (state === 'night' || state === 'night-cloudy') generateStars();
+}
+
+function generateRain(count) {
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < count; i++) {
+    const d = document.createElement('div');
+    d.className = 'rain-drop';
+    d.style.cssText = `left:${(Math.random()*105).toFixed(1)}%;` +
+      `height:${(12+Math.random()*16).toFixed(0)}px;` +
+      `animation-duration:${(0.4+Math.random()*0.5).toFixed(2)}s;` +
+      `animation-delay:${(Math.random()*2).toFixed(2)}s;` +
+      `opacity:${(0.25+Math.random()*0.45).toFixed(2)};`;
+    frag.appendChild(d);
+  }
+  $('wxRainLayer').appendChild(frag);
+}
+
+function generateSnow() {
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 80; i++) {
+    const d    = document.createElement('div');
+    const size = (3 + Math.random() * 6).toFixed(1);
+    d.className = 'snow-flake';
+    d.style.cssText = `left:${(Math.random()*100).toFixed(1)}%;` +
+      `width:${size}px;height:${size}px;` +
+      `animation-duration:${(3+Math.random()*5).toFixed(1)}s;` +
+      `animation-delay:${(Math.random()*5).toFixed(2)}s;` +
+      `opacity:${(0.5+Math.random()*0.5).toFixed(2)};`;
+    frag.appendChild(d);
+  }
+  $('wxSnowLayer').appendChild(frag);
+}
+
+function generateStars() {
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 130; i++) {
+    const d    = document.createElement('div');
+    const size = (1 + Math.random() * 2.5).toFixed(1);
+    d.className = 'star';
+    d.style.cssText = `left:${(Math.random()*100).toFixed(1)}%;` +
+      `top:${(Math.random()*85).toFixed(1)}%;` +
+      `width:${size}px;height:${size}px;` +
+      `animation-duration:${(2+Math.random()*3).toFixed(1)}s;` +
+      `animation-delay:${(Math.random()*4).toFixed(2)}s;`;
+    frag.appendChild(d);
+  }
+  $('wxStarsLayer').appendChild(frag);
+}
+
+// ══════════════════════════════════════════════════════════════
+// API – fetch with auto-retry and data validation
+// ══════════════════════════════════════════════════════════════
+async function apiFetch(url) {
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res.json();
+      if (res.status === 404) throw Object.assign(new Error('not_found'), { permanent: true });
+      if (res.status === 401) throw Object.assign(new Error('api_key'),   { permanent: true });
+      if (attempt === 2) throw new Error(`api_error_${res.status}`);
+    } catch (e) {
+      if (e.permanent || attempt === 2) throw e;
+    }
+    await new Promise(r => setTimeout(r, 800));
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-function fmtTime(unix, offset) {
-  const d = new Date((unix + offset) * 1000);
-  return d.getUTCHours().toString().padStart(2, '0') + ':' + d.getUTCMinutes().toString().padStart(2, '0');
-}
-function toF(c) { return ((c * 9) / 5 + 32).toFixed(1); }
-function toC(c) { return parseFloat(c).toFixed(1); }
-
-// ── Unit toggle ───────────────────────────────────────────────
-function switchUnit(unit) {
-  currentUnit = unit;
-  $('celsiusBtn').classList.toggle('active', unit === 'C');
-  $('fahrenheitBtn').classList.toggle('active', unit === 'F');
-  if (!currentWeather) return;
-  const { temp, feelsLike } = currentWeather;
-  if (unit === 'C') {
-    $('temperature').textContent   = `${toC(temp)}°C`;
-    $('feelsLikeMain').textContent = `Feels like ${toC(feelsLike)}°C`;
-  } else {
-    $('temperature').textContent   = `${toF(temp)}°F`;
-    $('feelsLikeMain').textContent = `Feels like ${toF(feelsLike)}°F`;
-  }
-}
-window.switchUnit = switchUnit;
-
-// ── API calls ─────────────────────────────────────────────────
 async function fetchWeather(city) {
-  const url = `${CONFIG.OPENWEATHER_BASE_URL}/weather?q=${encodeURIComponent(city)}&appid=${CONFIG.OPENWEATHER_API_KEY}&units=metric`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    if (res.status === 404) throw new Error('City not found. Please check the spelling and try again.');
-    throw new Error(`API error (${res.status}). Please try again later.`);
-  }
-  return res.json();
+  const url  = `${CONFIG.OPENWEATHER_BASE_URL}/weather?q=${encodeURIComponent(city)}&appid=${CONFIG.OPENWEATHER_API_KEY}&units=metric`;
+  const data = await apiFetch(url);
+  validateWeatherData(data);
+  return data;
 }
 
 async function fetchForecast(city) {
   try {
     const url = `${CONFIG.OPENWEATHER_BASE_URL}/forecast?q=${encodeURIComponent(city)}&appid=${CONFIG.OPENWEATHER_API_KEY}&units=metric`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.json();
-  } catch (e) { return null; }
+    return await apiFetch(url);
+  } catch (_) { return null; }
 }
 
-async function fetchUVIndex(lat, lon) {
+async function fetchUV(lat, lon) {
   try {
     const url = `${CONFIG.OPENWEATHER_BASE_URL}/uvi?lat=${lat}&lon=${lon}&appid=${CONFIG.OPENWEATHER_API_KEY}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const d = await res.json();
+    const d   = await apiFetch(url);
     return typeof d.value === 'number' ? d.value : null;
-  } catch (e) { return null; }
+  } catch (_) { return null; }
 }
 
-// ── Display current weather ───────────────────────────────────
-function displayWeather(data) {
-  const { name, sys, main, weather, wind, visibility, dt, timezone, clouds, coord } = data;
+function validateWeatherData(d) {
+  if (!d || typeof d !== 'object')         throw new Error('Invalid response from weather service.');
+  if (!d.name || !d.main || !d.weather?.[0]) throw new Error('Incomplete weather data received.');
+  if (typeof d.main.temp !== 'number')     throw new Error('Temperature data is invalid.');
+}
+
+// ══════════════════════════════════════════════════════════════
+// UI STATE MANAGEMENT
+// ══════════════════════════════════════════════════════════════
+function showSkeleton() {
+  $('stateSkeleton').classList.add('active');
+  $('stateError').classList.remove('active');
+  $('stateOffline').classList.remove('active');
+  $('contentPanels').classList.remove('active');
+  $('recentWrap').classList.remove('active');
+  $('mainWrap').style.display = 'block';
+}
+
+function showError(msg) {
+  $('seMsg').textContent = msg;
+  $('stateSkeleton').classList.remove('active');
+  $('stateError').classList.add('active');
+  $('stateOffline').classList.remove('active');
+  $('contentPanels').classList.remove('active');
+}
+
+function showOffline() {
+  $('stateSkeleton').classList.remove('active');
+  $('stateError').classList.remove('active');
+  $('stateOffline').classList.add('active');
+  $('contentPanels').classList.remove('active');
+  $('mainWrap').style.display = 'block';
+}
+
+function showContent() {
+  $('stateSkeleton').classList.remove('active');
+  $('stateError').classList.remove('active');
+  $('stateOffline').classList.remove('active');
+  $('contentPanels').classList.add('active');
+  setTimeout(initScrollAnimations, 80);
+}
+
+// ══════════════════════════════════════════════════════════════
+// HERO DISPLAY
+// ══════════════════════════════════════════════════════════════
+function displayHero(data) {
+  const { name, sys, main, weather, timezone } = data;
   const icon = weather[0].icon;
-  const desc = weather[0].description;
 
-  // Store for unit toggle
-  currentWeather = { temp: main.temp, feelsLike: main.feels_like };
-  currentUnit = 'C';
-  $('celsiusBtn').classList.add('active');
-  $('fahrenheitBtn').classList.remove('active');
+  $('heroCity').textContent = `${name}, ${sys.country}`;
+  $('heroTemp').textContent = `${Math.round(currentUnit === 'C' ? main.temp : main.temp * 9/5 + 32)}°`;
+  $('heroCond').textContent  = weather[0].description;
+  $('heroFeels').textContent = `Feels like ${Math.round(main.feels_like)}°C`;
 
-  // Icon
-  $('weatherIcon').src = `https://openweathermap.org/img/wn/${icon}@4x.png`;
-  $('weatherIcon').alt = desc;
+  const iconEl = $('heroIcon');
+  iconEl.src   = `https://openweathermap.org/img/wn/${icon}@2x.png`;
+  iconEl.alt   = weather[0].description;
+  iconEl.style.display = 'block';
 
-  // Location & date
-  $('cityName').textContent = `${name}, ${sys.country}`;
-  const dateStr = new Date((dt + timezone) * 1000)
-    .toUTCString().replace(' GMT', '').split(',')[1].trim().slice(0, -3);
-  $('countryDate').textContent = dateStr;
-
-  // Temperature & description
-  $('temperature').textContent   = `${toC(main.temp)}°C`;
-  $('weatherDesc').textContent   = desc;
-  $('feelsLikeMain').textContent = `Feels like ${toC(main.feels_like)}°C`;
-
-  // Details
-  $('humidity').textContent   = `${main.humidity}%`;
-  $('windSpeed').textContent  = `${(wind.speed * 3.6).toFixed(1)} km/h`;
-  $('visibility').textContent = visibility ? `${(visibility / 1000).toFixed(1)} km` : 'N/A';
-  $('pressure').textContent   = `${main.pressure} hPa`;
-  $('sunrise').textContent    = fmtTime(sys.sunrise, timezone);
-  $('sunset').textContent     = fmtTime(sys.sunset, timezone);
-  $('cloudiness').textContent = `${clouds?.all ?? '--'}%`;
-  $('uvIndex').textContent    = '—'; // updated async below
-
-  return coord;
+  applyWeatherState(getWeatherState(icon));
+  startClock(timezone);
 }
 
-// ── Display 5-day forecast ────────────────────────────────────
-function displayForecast(data) {
-  const section = $('forecast');
-  const grid    = $('forecastGrid');
-  const loading = $('forecastLoading');
+// ══════════════════════════════════════════════════════════════
+// CURRENT WEATHER CARD
+// ══════════════════════════════════════════════════════════════
+function displayCurrentWeather(data) {
+  const { name, sys, main, weather, wind, visibility, dt, timezone } = data;
+  const icon = weather[0].icon;
 
-  loading.classList.remove('visible');
+  $('detailCity').textContent = `${name}, ${sys.country}`;
+  $('detailDate').textContent = formatLocalDate(dt, timezone);
+  $('detailIcon').src         = `https://openweathermap.org/img/wn/${icon}@4x.png`;
+  $('detailIcon').alt         = weather[0].description;
 
-  if (!data || !data.list) {
-    section.classList.remove('visible');
-    return;
+  $('detailTemp').textContent = currentUnit === 'C'
+    ? `${toC(main.temp)}°C`
+    : `${toF(main.temp)}°F`;
+  $('celsiusBtn').classList.toggle('active', currentUnit === 'C');
+  $('fahrenheitBtn').classList.toggle('active', currentUnit === 'F');
+
+  $('detailCond').textContent   = weather[0].description;
+  $('detailFeels').textContent  = `Feels like ${toC(main.feels_like)}°C`;
+  $('detailHL').textContent     = `H: ${Math.round(main.temp_max)}° · L: ${Math.round(main.temp_min)}°`;
+
+  $('dHumidity').textContent   = `${main.humidity}%`;
+  $('dWind').textContent       = `${(wind.speed * 3.6).toFixed(1)} km/h`;
+  $('dPressure').textContent   = `${main.pressure} hPa`;
+  $('dVisibility').textContent = visibility ? `${(visibility / 1000).toFixed(1)} km` : 'N/A';
+}
+
+// ══════════════════════════════════════════════════════════════
+// ADVANCED DETAILS
+// ══════════════════════════════════════════════════════════════
+function displayAdvanced(data, uvIndex) {
+  const { wind, main, clouds, sys, timezone } = data;
+
+  /* ── Wind Compass ──────────────────────────────────────── */
+  const windDeg   = wind.deg ?? 0;
+  const windSpeed = (wind.speed * 3.6).toFixed(1);
+  $('compassNeedle').style.transform = `rotate(${windDeg}deg)`;
+  $('advWindSpeed').textContent      = `${windSpeed} km/h`;
+  $('advWindDir').textContent        = `From ${degToCardinal(windDeg)}`;
+
+  /* ── UV Index ──────────────────────────────────────────── */
+  if (uvIndex !== null && uvIndex !== undefined) {
+    const uv            = parseFloat(uvIndex.toFixed(1));
+    const { label, color } = uvCategory(uv);
+    $('uvNum').textContent  = uv;
+    $('uvCat').textContent  = label;
+    $('uvNum').style.color  = color;
+    $('uvCat').style.color  = color;
+    $('uvMarker').style.left = `${Math.min(uv / 11, 1) * 100}%`;
+  } else {
+    $('uvNum').textContent = 'N/A';
+    $('uvCat').textContent = '—';
   }
 
-  // Group entries by calendar day, skip today
-  const today = new Date().toDateString();
-  const days  = {};
-  data.list.forEach(item => {
-    const key = new Date(item.dt * 1000).toDateString();
-    if (key === today) return;
-    if (!days[key]) days[key] = [];
-    days[key].push(item);
-  });
+  /* ── Humidity Gauge ────────────────────────────────────── */
+  const hum = main.humidity;
+  $('humPct').textContent  = hum;
+  $('humDesc').textContent = humDesc(hum);
+  setHumidityGauge(hum);
 
-  const dayKeys = Object.keys(days).slice(0, 5);
-  if (!dayKeys.length) { section.classList.remove('visible'); return; }
+  /* ── Pressure ──────────────────────────────────────────── */
+  const pres = main.pressure;
+  $('presBig').textContent = pres;
+  const pt = pressureTrend(pres);
+  const tEl = $('presTrend');
+  tEl.className = `pres-trend ${pt.cls}`;
+  $('presTrendIcon').className = `fas ${pt.icon}`;
+  $('presTrendText').textContent = pt.label;
+  const presPct = Math.max(0, Math.min(100, (pres - 970) / (1040 - 970) * 100));
+  $('presMarker').style.left = `${presPct.toFixed(1)}%`;
 
-  section.classList.add('visible');
+  /* ── Sunrise/Sunset Arc ────────────────────────────────── */
+  const now = Math.floor(Date.now() / 1000);
+  const sr  = sys.sunrise;
+  const ss  = sys.sunset;
+  const p   = Math.max(0, Math.min(1, (now - sr) / (ss - sr)));
+  const arcLen = 267;
+  $('arcFill').style.strokeDashoffset = (arcLen * (1 - p)).toFixed(1);
+  // Position sun dot along the semicircular arc (center 100,100 radius 85)
+  const theta = Math.PI * (1 - p);
+  $('sunArcDot').setAttribute('cx', (100 + 85 * Math.cos(theta)).toFixed(1));
+  $('sunArcDot').setAttribute('cy', (100 - 85 * Math.sin(theta)).toFixed(1));
+  $('advSunrise').textContent = fmtTime(sr, timezone);
+  $('advSunset').textContent  = fmtTime(ss, timezone);
 
-  grid.innerHTML = dayKeys.map(key => {
-    const items = days[key];
-    const temps = items.map(i => i.main.temp);
-    const high  = Math.round(Math.max(...temps));
-    const low   = Math.round(Math.min(...temps));
+  /* ── Cloud Cover ───────────────────────────────────────── */
+  const cl = clouds?.all ?? 0;
+  $('cloudBig').textContent       = `${cl}%`;
+  $('cloudBarInner').style.width  = `${cl}%`;
+  $('cloudDesc').textContent      = cloudDesc(cl);
+}
 
-    // Pick midday entry for icon/condition
-    const mid = items.find(i => {
-      const h = new Date(i.dt * 1000).getUTCHours();
-      return h >= 11 && h <= 14;
-    }) || items[Math.floor(items.length / 2)];
+/* Humidity SVG arc gauge
+   Track: dasharray=254, dashoffset=63.5 → arc from 63.5 to 317.5 on rotated circle
+   Fill:  same start (dashoffset=63.5), visible length = 254 * pct / 100              */
+function setHumidityGauge(pct) {
+  const fill = $('humFill');
+  if (!fill) return;
+  const visible = 254 * Math.min(Math.max(pct, 0), 100) / 100;
+  // Reset to 0 without transition, then animate to target
+  fill.style.transition        = 'none';
+  fill.style.strokeDasharray   = '0 1000';
+  fill.style.strokeDashoffset  = '63.5';
+  // Force reflow so the reset state is painted before the transition starts
+  fill.getBoundingClientRect();
+  fill.style.transition      = 'stroke-dasharray 0.85s cubic-bezier(0.4,0,0.2,1)';
+  fill.style.strokeDasharray = `${visible} 1000`;
+}
 
-    const icon = mid.weather[0].icon;
-    const cond = mid.weather[0].description;
-    const d    = new Date(key);
-    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// ══════════════════════════════════════════════════════════════
+// HOURLY FORECAST  (horizontal scroll)
+// ══════════════════════════════════════════════════════════════
+function displayHourly(forecastData, timezone) {
+  const track  = $('hourlyTrack');
+  const panel  = $('hourly');
+  if (!forecastData?.list?.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
 
-    return `
-      <div class="forecast-day">
-        <div class="fc-day-name">${dayName}<small>${dateStr}</small></div>
-        <img class="fc-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${cond}">
-        <div class="fc-cond">${cond}</div>
-        <div class="fc-temps">
-          <span class="fc-high">${high}°</span>
-          <span class="fc-low">${low}°</span>
-        </div>
-      </div>`;
+  const items = forecastData.list.slice(0, 8);
+  track.innerHTML = items.map((item, i) => {
+    const d         = new Date((item.dt + timezone) * 1000);
+    const timeLabel = i === 0 ? 'Now' : `${d.getUTCHours().toString().padStart(2,'0')}:00`;
+    const temp      = currentUnit === 'C'
+      ? `${Math.round(item.main.temp)}°`
+      : `${Math.round(item.main.temp * 9/5 + 32)}°`;
+    const rain = Math.round((item.pop || 0) * 100);
+    const icon = item.weather[0].icon;
+
+    return `<div class="hour-card${i === 0 ? ' current' : ''}">
+      <span class="hc-time">${timeLabel}</span>
+      <img class="hc-wx-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${item.weather[0].description}" loading="lazy">
+      <span class="hc-hour-temp">${temp}</span>
+      <span class="hc-rain"><i class="fas fa-droplet"></i>${rain}%</span>
+    </div>`;
   }).join('');
 }
 
-// ── Save to Supabase ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// TEMPERATURE CHART  (Chart.js)
+// ══════════════════════════════════════════════════════════════
+function renderTempChart(forecastData, timezone) {
+  const canvas = $('tempChart');
+  if (!forecastData?.list?.length || !canvas) return;
+  if (tempChartInstance) { tempChartInstance.destroy(); tempChartInstance = null; }
+
+  const items = forecastData.list.slice(0, 8);
+  const labels = items.map((it, i) => {
+    if (i === 0) return 'Now';
+    const d = new Date((it.dt + timezone) * 1000);
+    return `${d.getUTCHours().toString().padStart(2,'0')}:00`;
+  });
+  const tempConv = v => currentUnit === 'C' ? v : v * 9/5 + 32;
+  const temps  = items.map(it => parseFloat(tempConv(it.main.temp).toFixed(1)));
+  const feels  = items.map(it => parseFloat(tempConv(it.main.feels_like).toFixed(1)));
+
+  const ctx   = canvas.getContext('2d');
+  const grad1 = ctx.createLinearGradient(0, 0, 0, 200);
+  grad1.addColorStop(0, 'rgba(14,165,233,0.4)');
+  grad1.addColorStop(1, 'rgba(14,165,233,0)');
+  const grad2 = ctx.createLinearGradient(0, 0, 0, 200);
+  grad2.addColorStop(0, 'rgba(167,139,250,0.22)');
+  grad2.addColorStop(1, 'rgba(167,139,250,0)');
+
+  tempChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Temperature',
+          data: temps,
+          borderColor: '#38bdf8',
+          backgroundColor: grad1,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: '#38bdf8',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+        },
+        {
+          label: 'Feels Like',
+          data: feels,
+          borderColor: 'rgba(167,139,250,0.65)',
+          backgroundColor: grad2,
+          borderWidth: 1.5,
+          fill: false,
+          tension: 0.4,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          borderDash: [5, 4],
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: 'rgba(255,255,255,.45)',
+            font: { family: 'Inter', size: 11 },
+            boxWidth: 10,
+            padding: 14,
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(5,13,26,.95)',
+          titleColor: '#64748b',
+          bodyColor: '#fff',
+          borderColor: 'rgba(14,165,233,.2)',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}°${currentUnit}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: {
+            color: '#64748b',
+            font: { family: 'Inter', size: 11 },
+            callback: v => `${v}°`
+          }
+        }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// 5-DAY FORECAST
+// ══════════════════════════════════════════════════════════════
+function displayFiveDayForecast(forecastData) {
+  const rows  = $('forecastRows');
+  const panel = $('forecast');
+  if (!forecastData?.list?.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  // Group by calendar day, skip today
+  const today  = new Date().toDateString();
+  const dayMap = {};
+  forecastData.list.forEach(item => {
+    const key = new Date(item.dt * 1000).toDateString();
+    if (key === today) return;
+    if (!dayMap[key]) dayMap[key] = [];
+    dayMap[key].push(item);
+  });
+
+  const dayKeys = Object.keys(dayMap).slice(0, 5);
+  if (!dayKeys.length) { panel.style.display = 'none'; return; }
+
+  // Week-wide range for the temperature bar
+  const allTemps = dayKeys.flatMap(k => dayMap[k].map(i => i.main.temp));
+  const weekMin  = Math.min(...allTemps);
+  const weekMax  = Math.max(...allTemps);
+  const weekSpan = weekMax - weekMin || 1;
+  const tc       = v => currentUnit === 'C' ? Math.round(v) : Math.round(v * 9/5 + 32);
+
+  rows.innerHTML = dayKeys.map(key => {
+    const items    = dayMap[key];
+    const temps    = items.map(i => i.main.temp);
+    const dayMin   = Math.min(...temps);
+    const dayMax   = Math.max(...temps);
+    const maxRain  = Math.round(Math.max(...items.map(i => i.pop || 0)) * 100);
+    const mid      = items.find(i => { const h = new Date(i.dt * 1000).getUTCHours(); return h >= 11 && h <= 14; })
+                     || items[Math.floor(items.length / 2)];
+    const icon     = mid.weather[0].icon;
+    const cond     = mid.weather[0].description;
+    const d        = new Date(key);
+    const dayName  = d.toLocaleDateString('en-US', { weekday: 'short' });
+    const dateStr  = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    // Bar: left and right % within the week's temp range
+    const leftPct  = ((dayMin - weekMin) / weekSpan * 100).toFixed(1);
+    const rightPct = (100 - (dayMax - weekMin) / weekSpan * 100).toFixed(1);
+
+    return `<div class="fc-row">
+      <div class="fc-day-name">${dayName}<small>${dateStr}</small></div>
+      <img class="fc-row-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${cond}" loading="lazy">
+      <div class="fc-row-cond">${cond}</div>
+      <div class="fc-rain-prob"><i class="fas fa-droplet"></i>${maxRain}%</div>
+      <div class="fc-temp-range">
+        <span class="fc-low">${tc(dayMin)}°</span>
+        <div class="fc-bar-wrap">
+          <div class="fc-bar-fill" style="left:${leftPct}%;right:${rightPct}%"></div>
+        </div>
+        <span class="fc-high">${tc(dayMax)}°</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// UNIT TOGGLE (°C / °F)
+// ══════════════════════════════════════════════════════════════
+function switchUnit(unit) {
+  if (!currentWeatherData) return;
+  currentUnit = unit;
+  $('celsiusBtn').classList.toggle('active', unit === 'C');
+  $('fahrenheitBtn').classList.toggle('active', unit === 'F');
+  const { weather, forecast } = currentWeatherData;
+  displayCurrentWeather(weather);
+  displayHero(weather);
+  if (forecast) {
+    displayHourly(forecast, weather.timezone);
+    renderTempChart(forecast, weather.timezone);
+    displayFiveDayForecast(forecast);
+  }
+}
+window.switchUnit = switchUnit;
+
+// ══════════════════════════════════════════════════════════════
+// HELPER UTILITIES
+// ══════════════════════════════════════════════════════════════
+function toC(v) { return parseFloat(v).toFixed(1); }
+function toF(v) { return ((v * 9/5) + 32).toFixed(1); }
+
+function fmtTime(unix, offset) {
+  const d = new Date((unix + offset) * 1000);
+  return d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
+}
+
+function formatLocalDate(unix, offset) {
+  const d   = new Date((unix + offset) * 1000);
+  const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${DAY[d.getUTCDay()]}, ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+function degToCardinal(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+function uvCategory(uv) {
+  if (uv <= 2)  return { label: 'Low',       color: '#4ade80' };
+  if (uv <= 5)  return { label: 'Moderate',  color: '#facc15' };
+  if (uv <= 7)  return { label: 'High',      color: '#fb923c' };
+  if (uv <= 10) return { label: 'Very High', color: '#f87171' };
+  return              { label: 'Extreme',    color: '#c084fc' };
+}
+
+function pressureTrend(p) {
+  if (p > 1015) return { label: 'Rising – High Pressure', cls: 'rising',  icon: 'fa-arrow-up'    };
+  if (p >= 1008)return { label: 'Stable – Normal',        cls: 'stable',  icon: 'fa-arrow-right' };
+  return              { label: 'Falling – Low Pressure',  cls: 'falling', icon: 'fa-arrow-down'  };
+}
+
+function humDesc(h) {
+  if (h <= 30) return 'Very Dry';
+  if (h <= 50) return 'Comfortable';
+  if (h <= 70) return 'Humid';
+  if (h <= 85) return 'Very Humid';
+  return 'Extremely Humid';
+}
+
+function cloudDesc(c) {
+  if (c <= 12)  return 'Clear Sky';
+  if (c <= 45)  return 'Partly Cloudy';
+  if (c <= 75)  return 'Mostly Cloudy';
+  return              'Overcast';
+}
+
+// ══════════════════════════════════════════════════════════════
+// RECENT SEARCHES  (only shown after a search, never on first load)
+// ══════════════════════════════════════════════════════════════
+function getRecent() {
+  try { return JSON.parse(localStorage.getItem('wp_recent') || '[]'); } catch (_) { return []; }
+}
+function addRecent(city, icon) {
+  let r = getRecent().filter(x => x.city.toLowerCase() !== city.toLowerCase());
+  r.unshift({ city, icon });
+  localStorage.setItem('wp_recent', JSON.stringify(r.slice(0, 8)));
+}
+function renderRecent() {
+  const recent = getRecent();
+  const wrap   = $('recentWrap');
+  const chips  = $('recentChips');
+  // Guard: never show on load, only when content panels are active
+  if (!recent.length || !$('contentPanels').classList.contains('active')) {
+    wrap.classList.remove('active');
+    return;
+  }
+  wrap.classList.add('active');
+  chips.innerHTML = recent.map(r => `
+    <button class="recent-chip" onclick="triggerSearch('${r.city.replace(/'/g,"\\'")}')">
+      <img src="https://openweathermap.org/img/wn/${r.icon}.png" alt="${r.city}">
+      ${r.city}
+    </button>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUPABASE – save search
+// ══════════════════════════════════════════════════════════════
 async function saveSearch(data) {
   if (!supabaseClient) return;
   try {
@@ -229,89 +658,283 @@ async function saveSearch(data) {
       condition:   weather[0].description,
       icon:        weather[0].icon
     });
-  } catch (e) {
-    console.warn('Supabase save failed:', e.message);
-  }
+  } catch (e) { console.warn('Supabase save failed:', e.message); }
 }
 
-// ── Recent searches ───────────────────────────────────────────
-function getRecentSearches() {
-  try { return JSON.parse(localStorage.getItem('wp_recent') || '[]'); } catch (e) { return []; }
-}
-
-function addRecentSearch(city, icon) {
-  let recent = getRecentSearches().filter(r => r.city.toLowerCase() !== city.toLowerCase());
-  recent.unshift({ city, icon });
-  if (recent.length > 8) recent = recent.slice(0, 8);
-  localStorage.setItem('wp_recent', JSON.stringify(recent));
-}
-
-function renderRecentSearches() {
-  const recent  = getRecentSearches();
-  const section = $('recentSearches');
-  const list    = $('recentList');
-  if (!recent.length) { section.classList.remove('visible'); return; }
-  section.classList.add('visible');
-  list.innerHTML = recent.map(r => `
-    <button class="recent-chip" onclick="triggerSearch('${r.city.replace(/'/g, "\\'")}')">
-      <img src="https://openweathermap.org/img/wn/${r.icon}.png" alt="${r.city}">
-      ${r.city}
-    </button>`).join('');
-}
-
-// ── Main search flow ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// MAIN SEARCH FLOW
+// ══════════════════════════════════════════════════════════════
 async function triggerSearch(city) {
-  if (!city.trim()) return;
+  city = city?.trim();
+  if (!city) return;
+  if (!navigator.onLine) { showOffline(); return; }
 
-  // Sync all inputs
-  ['cityInput', 'headerCityInput', 'mobileCityInput'].forEach(id => {
-    const el = $(id);
-    if (el) el.value = city;
-  });
+  lastCity = city;
+  syncInputs(city);
+  showSkeleton();
+  $('scrollHint').classList.add('hidden');
 
-  // Show forecast section with spinner
-  const forecastSection = $('forecast');
-  const forecastLoading = $('forecastLoading');
-  const forecastGrid    = $('forecastGrid');
-  forecastGrid.innerHTML = '';
-  forecastSection.classList.add('visible');
-  forecastLoading.classList.add('visible');
-
-  showState('loading');
+  // Smooth scroll to results
+  setTimeout(() => $('mainWrap').scrollIntoView({ behavior: 'smooth', block: 'start' }), 220);
 
   try {
-    // Fetch current weather + forecast in parallel
+    // Fetch current weather + 5-day forecast in parallel
     const [weatherData, forecastData] = await Promise.all([
       fetchWeather(city),
       fetchForecast(city)
     ]);
 
-    const coord = displayWeather(weatherData);
-    showState('weather');
-    displayForecast(forecastData);
+    currentWeatherData = { weather: weatherData, forecast: forecastData };
 
-    // Fetch UV Index asynchronously (non-blocking)
-    if (coord) {
-      fetchUVIndex(coord.lat, coord.lon).then(uv => {
-        if (uv !== null) $('uvIndex').textContent = uv.toFixed(1);
-      });
-    }
+    // Render all panels
+    displayHero(weatherData);
+    displayCurrentWeather(weatherData);
+    displayHourly(forecastData, weatherData.timezone);
+    renderTempChart(forecastData, weatherData.timezone);
+    displayFiveDayForecast(forecastData);
+    showContent();
 
-    addRecentSearch(weatherData.name, weatherData.weather[0].icon);
-    renderRecentSearches();
-    await saveSearch(weatherData);
+    // UV + advanced details fetched async (non-blocking)
+    const coord = weatherData.coord;
+    fetchUV(coord.lat, coord.lon).then(uv => displayAdvanced(weatherData, uv));
+
+    // Recent searches
+    addRecent(weatherData.name, weatherData.weather[0].icon);
+    renderRecent();
+
+    // Supabase tracking
+    saveSearch(weatherData);
 
   } catch (err) {
-    $('errorMessage').textContent = err.message || 'Something went wrong. Please try again.';
-    forecastSection.classList.remove('visible');
-    forecastLoading.classList.remove('visible');
-    showState('error');
+    let msg = 'Something went wrong. Please try again.';
+    if (err.message === 'not_found')  msg = `"${city}" was not found. Check the spelling and try again.`;
+    else if (err.message === 'api_key') msg = 'API key error. Please contact support.';
+    else if (!navigator.onLine)       msg = 'You appear to be offline. Check your connection.';
+    showError(msg);
   }
 }
 window.triggerSearch = triggerSearch;
 
-// ── Wire up all search forms ──────────────────────────────────
-function setupForm(formId, inputId) {
+function syncInputs(city) {
+  ['cityInput','hdrCityInput','mobCityInput'].forEach(id => {
+    const el = $(id); if (el) el.value = city;
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// GEOLOCATION  – "Use My Location"
+// ══════════════════════════════════════════════════════════════
+function handleGeoLocation() {
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser.');
+    return;
+  }
+  const btn      = $('btnGeo');
+  const origHTML = btn.innerHTML;
+  btn.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Locating…';
+  btn.disabled   = true;
+
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      btn.innerHTML = origHTML;
+      btn.disabled  = false;
+      const { latitude: lat, longitude: lon } = pos.coords;
+
+      showSkeleton();
+      $('scrollHint').classList.add('hidden');
+      setTimeout(() => $('mainWrap').scrollIntoView({ behavior: 'smooth', block: 'start' }), 220);
+
+      try {
+        const url         = `${CONFIG.OPENWEATHER_BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${CONFIG.OPENWEATHER_API_KEY}&units=metric`;
+        const weatherData = await apiFetch(url);
+        validateWeatherData(weatherData);
+        const forecastData = await fetchForecast(weatherData.name);
+
+        currentWeatherData = { weather: weatherData, forecast: forecastData };
+        lastCity           = weatherData.name;
+        syncInputs(weatherData.name);
+
+        displayHero(weatherData);
+        displayCurrentWeather(weatherData);
+        displayHourly(forecastData, weatherData.timezone);
+        renderTempChart(forecastData, weatherData.timezone);
+        displayFiveDayForecast(forecastData);
+        showContent();
+
+        fetchUV(weatherData.coord.lat, weatherData.coord.lon)
+          .then(uv => displayAdvanced(weatherData, uv));
+
+        addRecent(weatherData.name, weatherData.weather[0].icon);
+        renderRecent();
+        saveSearch(weatherData);
+      } catch (e) {
+        showError('Could not load weather for your location. Please search manually.');
+      }
+    },
+    err => {
+      btn.innerHTML = origHTML;
+      btn.disabled  = false;
+      const msgs = {
+        1: 'Location access was denied. Please allow it in your browser settings.',
+        2: 'Your location is currently unavailable. Please search manually.',
+        3: 'Location request timed out. Please try again.',
+      };
+      alert(msgs[err.code] || 'Unable to get your location.');
+    },
+    { timeout: 10000, maximumAge: 300000 }
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUBSCRIPTION FORM
+// ══════════════════════════════════════════════════════════════
+async function subscribeEmail(email, city, onSuccess, onError) {
+  if (!supabaseClient) { onError('Subscription service unavailable. Please try again later.'); return; }
+  try {
+    const { error } = await supabaseClient
+      .from('subscribers')
+      .insert({ email: email.toLowerCase().trim(), city: city || null });
+
+    if (error) {
+      if (error.code === '23505') onError('This email is already subscribed!');
+      else throw error;
+    } else {
+      onSuccess();
+    }
+  } catch (e) {
+    console.error('Subscribe error:', e);
+    onError('Could not subscribe right now. Please try again later.');
+  }
+}
+
+function wireSubscribeForm(formId, emailId, cityId, cardId, successId, errId) {
+  const form = $(formId);
+  if (!form) return;
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $(emailId)?.value.trim();
+    const city  = cityId ? $(cityId)?.value.trim() : '';
+
+    // Validate email
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (errId) $(errId).textContent = 'Please enter a valid email address.';
+      return;
+    }
+    if (errId) $(errId).textContent = '';
+
+    const btn      = form.querySelector('button[type="submit"]');
+    const origHTML = btn.innerHTML;
+    btn.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Subscribing…';
+    btn.disabled   = true;
+    btn.classList.add('loading');
+
+    await subscribeEmail(
+      email, city,
+      () => {
+        // ── Success ──
+        btn.innerHTML = origHTML;
+        btn.disabled  = false;
+        btn.classList.remove('loading');
+        if (cardId && successId) {
+          // Main subscribe section — show success card
+          $(cardId).style.display = 'none';
+          $(successId).classList.add('visible');
+        } else {
+          // Footer form — flash button green
+          btn.innerHTML        = '<i class="fas fa-circle-check"></i> Subscribed!';
+          btn.style.background = '#16a34a';
+          setTimeout(() => {
+            btn.innerHTML        = origHTML;
+            btn.style.background = '';
+            btn.disabled         = false;
+            if ($(emailId)) $(emailId).value = '';
+          }, 3500);
+        }
+      },
+      msg => {
+        // ── Error ──
+        btn.innerHTML = origHTML;
+        btn.disabled  = false;
+        btn.classList.remove('loading');
+        if (errId) $(errId).textContent = msg;
+        else       alert(msg);
+      }
+    );
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// SCROLL-TRIGGERED ANIMATIONS  (IntersectionObserver)
+// ══════════════════════════════════════════════════════════════
+let animObserver = null;
+function initScrollAnimations() {
+  if (animObserver) animObserver.disconnect();
+  animObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in-view');
+        animObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.panel-appear, .anim-fade-up').forEach(el => {
+    // Re-observe even if already seen (re-rendered content)
+    el.classList.remove('in-view');
+    animObserver.observe(el);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// HEADER – transparent over hero, solid when scrolled
+// ══════════════════════════════════════════════════════════════
+function initHeaderScroll() {
+  const header = $('siteHeader');
+  const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 50);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
+// ══════════════════════════════════════════════════════════════
+// MOBILE MENU
+// ══════════════════════════════════════════════════════════════
+function initMobileMenu() {
+  const burger = $('hdrBurger');
+  const nav    = $('hdrMobileNav');
+  if (!burger || !nav) return;
+  burger.addEventListener('click', () => {
+    nav.classList.toggle('open');
+    burger.innerHTML = nav.classList.contains('open')
+      ? '<i class="fas fa-times"></i>'
+      : '<i class="fas fa-bars"></i>';
+  });
+  nav.querySelectorAll('a').forEach(a =>
+    a.addEventListener('click', () => {
+      nav.classList.remove('open');
+      burger.innerHTML = '<i class="fas fa-bars"></i>';
+    })
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// OFFLINE DETECTION
+// ══════════════════════════════════════════════════════════════
+function initOfflineDetection() {
+  window.addEventListener('offline', () => {
+    if ($('stateSkeleton').classList.contains('active')) showOffline();
+  });
+  window.addEventListener('online', () => {
+    if ($('stateOffline').classList.contains('active') && lastCity) {
+      triggerSearch(lastCity);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// SEARCH FORM WIRING
+// ══════════════════════════════════════════════════════════════
+function wireSearchForm(formId, inputId) {
   const form = $(formId);
   if (!form) return;
   form.addEventListener('submit', e => {
@@ -320,23 +943,47 @@ function setupForm(formId, inputId) {
     if (city) triggerSearch(city);
   });
 }
-setupForm('heroSearchForm',   'cityInput');
-setupForm('headerSearchForm', 'headerCityInput');
-setupForm('mobileSearchForm', 'mobileCityInput');
 
-// ── Mobile menu toggle ────────────────────────────────────────
-const mobileBtn = $('mobileMenuBtn');
-const mobileNav = $('mobileNav');
-if (mobileBtn && mobileNav) {
-  mobileBtn.addEventListener('click', () => mobileNav.classList.toggle('open'));
-  // Close when a nav link is clicked
-  mobileNav.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', () => mobileNav.classList.remove('open'));
-  });
+// ══════════════════════════════════════════════════════════════
+// INITIALISE EVERYTHING
+// ══════════════════════════════════════════════════════════════
+function init() {
+  // Search forms
+  wireSearchForm('heroSearchForm', 'cityInput');
+  wireSearchForm('hdrSearchForm',  'hdrCityInput');
+  wireSearchForm('mobSearchForm',  'mobCityInput');
+
+  // Geo button
+  $('btnGeo')?.addEventListener('click', handleGeoLocation);
+
+  // Retry button
+  $('btnRetry')?.addEventListener('click', () => { if (lastCity) triggerSearch(lastCity); });
+
+  // Hourly scroll arrows
+  const track = $('hourlyTrack');
+  $('scrLeft')?.addEventListener('click',  () => track?.scrollBy({ left: -300, behavior: 'smooth' }));
+  $('scrRight')?.addEventListener('click', () => track?.scrollBy({ left:  300, behavior: 'smooth' }));
+
+  // Scroll hint click – scroll to main
+  $('scrollHint')?.addEventListener('click', () =>
+    $('mainWrap').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  );
+
+  // Subscribe forms
+  wireSubscribeForm('subForm',  'subEmail', 'subCity', 'subFormCard', 'subSuccess', 'subErr');
+  wireSubscribeForm('ftSubForm','ftSubEmail', null, null, null, null);
+
+  // UI systems
+  initMobileMenu();
+  initHeaderScroll();
+  initOfflineDetection();
+  initScrollAnimations();
+
+  // Clock starts showing local browser time until a city is searched
+  startClock(-(new Date().getTimezoneOffset() * 60));
+
+  // Supabase tracking
+  trackPageVisit();
 }
 
-// ── Init ──────────────────────────────────────────────────────
-updateClock();
-setInterval(updateClock, 1000);
-renderRecentSearches();
-trackPageVisit();
+init();

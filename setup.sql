@@ -41,7 +41,25 @@ CREATE POLICY "public_insert_visits" ON page_visits
 CREATE POLICY "public_select_visits" ON page_visits
   FOR SELECT USING (true);
 
--- 5. Indexes for performance
+-- 5. Create subscribers table
+CREATE TABLE IF NOT EXISTS subscribers (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email         VARCHAR(255) NOT NULL UNIQUE,
+  city          VARCHAR(100),
+  subscribed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. Enable RLS on subscribers
+ALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "public_insert_subscribers" ON subscribers
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "public_select_subscribers" ON subscribers
+  FOR SELECT USING (true);
+
+-- 7. Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_searches_created  ON weather_searches(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_searches_city     ON weather_searches(city);
 CREATE INDEX IF NOT EXISTS idx_visits_visitor    ON page_visits(visitor_id);
+CREATE INDEX IF NOT EXISTS idx_subscribers_email ON subscribers(email);

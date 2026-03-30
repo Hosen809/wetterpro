@@ -3,287 +3,534 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WeatherPro – Professional Weather Forecast</title>
-  <meta name="description" content="Accurate real-time weather forecasts for cities worldwide. Temperature, humidity, wind speed, UV index and 5-day forecasts.">
+  <title>WeatherPro – The World's Best Weather Forecast</title>
+  <meta name="description" content="Free professional weather service. Real-time forecasts, hourly trends, UV Index, wind compass. Zero ads. Faster than BBC Weather.">
   <link rel="stylesheet" href="css/styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
 
-  <!-- ══ HEADER ══ -->
-  <header class="header">
-    <div class="header-inner">
-      <a href="index.html" class="logo">
-        <div class="logo-icon"><i class="fas fa-cloud-sun-rain"></i></div>
-        <span class="logo-text">Weather<strong>Pro</strong></span>
-      </a>
-      <nav class="nav">
-        <a href="index.html" class="nav-link active">Home</a>
-        <a href="#forecast" class="nav-link">Forecast</a>
-        <a href="#cities" class="nav-link">Cities</a>
-        <a href="#about" class="nav-link">About</a>
-      </nav>
-      <form class="header-search" id="headerSearchForm" autocomplete="off">
-        <i class="fas fa-search"></i>
-        <input type="text" id="headerCityInput" placeholder="Search city…">
-        <button type="submit">Go</button>
-      </form>
-      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">
-        <i class="fas fa-bars"></i>
-      </button>
-    </div>
-    <!-- Mobile nav -->
-    <div class="mobile-nav" id="mobileNav">
-      <a href="index.html" class="nav-link">Home</a>
-      <a href="#forecast" class="nav-link">Forecast</a>
-      <a href="#cities" class="nav-link">Cities</a>
-      <a href="#about" class="nav-link">About</a>
-      <form class="mobile-search" id="mobileSearchForm" autocomplete="off">
-        <input type="text" id="mobileCityInput" placeholder="Search city…">
-        <button type="submit"><i class="fas fa-search"></i></button>
-      </form>
-    </div>
-  </header>
+<!-- ══════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════ -->
+<header class="site-header" id="siteHeader">
+  <div class="hdr-inner">
+    <a href="index.html" class="hdr-logo">
+      <div class="logo-mark"><i class="fas fa-cloud-bolt"></i></div>
+      <span>Weather<strong>Pro</strong></span>
+    </a>
+    <nav class="hdr-nav">
+      <a href="#hourly" class="hn-link">Hourly</a>
+      <a href="#forecast" class="hn-link">5-Day</a>
+      <a href="#cities" class="hn-link">Cities</a>
+      <a href="#subscribe" class="hn-link">Subscribe</a>
+      <a href="#about" class="hn-link">About</a>
+    </nav>
+    <form class="hdr-search" id="hdrSearchForm" autocomplete="off">
+      <i class="fas fa-search"></i>
+      <input type="text" id="hdrCityInput" placeholder="Search city…">
+      <button type="submit">Go</button>
+    </form>
+    <button class="hdr-burger" id="hdrBurger" aria-label="Menu">
+      <i class="fas fa-bars"></i>
+    </button>
+  </div>
+  <div class="hdr-mobile-nav" id="hdrMobileNav">
+    <a href="#forecast">5-Day Forecast</a>
+    <a href="#cities">German Cities</a>
+    <a href="#subscribe">Free Subscribe</a>
+    <a href="#about">About</a>
+    <form class="mob-search-form" id="mobSearchForm" autocomplete="off">
+      <input type="text" id="mobCityInput" placeholder="Search city…">
+      <button type="submit"><i class="fas fa-search"></i></button>
+    </form>
+  </div>
+</header>
 
-  <!-- ══ HERO ══ -->
-  <section class="hero">
-    <div class="hero-bg-pattern"></div>
-    <div class="hero-content">
-      <div class="hero-badge"><i class="fas fa-satellite-dish"></i> Live Weather Data</div>
-      <h1>Your Trusted<br><span>Weather Forecast</span></h1>
-      <p>Accurate, real-time weather powered by OpenWeatherMap.<br>Search any city worldwide in seconds.</p>
-      <form class="hero-search-box" id="heroSearchForm" autocomplete="off">
-        <div class="hero-search-inner">
-          <i class="fas fa-map-marker-alt"></i>
-          <input type="text" id="cityInput" placeholder="Enter city e.g. Berlin, London, Tokyo…" autofocus>
-          <button type="submit"><i class="fas fa-search"></i><span> Search</span></button>
+<!-- ══════════════════════════════════════════════
+     HERO – FULL SCREEN DYNAMIC BACKGROUND
+══════════════════════════════════════════════ -->
+<section class="hero-screen" id="heroScreen">
+
+  <!-- Animated weather background layers -->
+  <div class="wx-bg" id="wxBg">
+    <!-- Sun layer -->
+    <div class="wx-layer wx-sun-layer" id="wxSunLayer">
+      <div class="sun-wrap">
+        <div class="sun-glow"></div>
+        <div class="sun-disk"></div>
+        <div class="sun-rays" id="sunRays">
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
         </div>
-      </form>
-      <div class="hero-datetime">
-        <i class="fas fa-clock"></i>
-        <span id="heroDate">—</span>
-        <span class="hero-sep">|</span>
+      </div>
+    </div>
+    <!-- Moon layer -->
+    <div class="wx-layer wx-moon-layer" id="wxMoonLayer">
+      <div class="moon-wrap">
+        <div class="moon-disk"></div>
+        <div class="moon-glow"></div>
+      </div>
+    </div>
+    <!-- Stars layer (populated by JS) -->
+    <div class="wx-layer wx-stars-layer" id="wxStarsLayer"></div>
+    <!-- Clouds layer -->
+    <div class="wx-layer wx-clouds-layer" id="wxCloudsLayer">
+      <div class="hero-cloud hc1"></div>
+      <div class="hero-cloud hc2"></div>
+      <div class="hero-cloud hc3"></div>
+      <div class="hero-cloud hc4"></div>
+    </div>
+    <!-- Rain layer (populated by JS) -->
+    <div class="wx-layer wx-rain-layer" id="wxRainLayer"></div>
+    <!-- Snow layer (populated by JS) -->
+    <div class="wx-layer wx-snow-layer" id="wxSnowLayer"></div>
+    <!-- Lightning layer -->
+    <div class="wx-layer wx-lightning-layer" id="wxLightningLayer">
+      <div class="lightning-bolt" id="lightningBolt"></div>
+    </div>
+  </div>
+
+  <!-- Hero glass card -->
+  <div class="hero-content">
+    <div class="hero-card" id="heroCard">
+      <div class="hc-loc" id="hcLoc">
+        <i class="fas fa-map-marker-alt"></i>
+        <span id="heroCity">WeatherPro</span>
+      </div>
+      <div class="hc-temp-row">
+        <span class="hc-temp" id="heroTemp">—</span>
+        <img class="hc-icon" id="heroIcon" src="" alt="">
+      </div>
+      <p class="hc-cond" id="heroCond">Search a city to see live weather</p>
+      <div class="hc-meta">
+        <span id="heroFeels">—</span>
+        <span class="hc-dot">·</span>
         <span id="heroTime">—</span>
       </div>
     </div>
-  </section>
 
-  <!-- ══ QUICK CITIES ══ -->
-  <section class="quick-cities" id="cities">
-    <div class="wrap">
-      <h2 class="sec-title"><i class="fas fa-city"></i> Quick City Search</h2>
-      <div class="city-buttons">
-        <button class="city-btn" onclick="triggerSearch('Berlin')">
-          <i class="fas fa-map-marker-alt"></i>Berlin
-        </button>
-        <button class="city-btn" onclick="triggerSearch('München')">
-          <i class="fas fa-map-marker-alt"></i>München
-        </button>
-        <button class="city-btn" onclick="triggerSearch('Hamburg')">
-          <i class="fas fa-map-marker-alt"></i>Hamburg
-        </button>
-        <button class="city-btn" onclick="triggerSearch('Frankfurt')">
-          <i class="fas fa-map-marker-alt"></i>Frankfurt
-        </button>
-        <button class="city-btn" onclick="triggerSearch('Köln')">
-          <i class="fas fa-map-marker-alt"></i>Köln
-        </button>
-        <button class="city-btn" onclick="triggerSearch('Stuttgart')">
-          <i class="fas fa-map-marker-alt"></i>Stuttgart
-        </button>
-        <button class="city-btn" onclick="triggerSearch('Düsseldorf')">
-          <i class="fas fa-map-marker-alt"></i>Düsseldorf
-        </button>
-        <button class="city-btn" onclick="triggerSearch('Dresden')">
-          <i class="fas fa-map-marker-alt"></i>Dresden
-        </button>
+    <!-- Location + search -->
+    <div class="hero-actions">
+      <button class="btn-geo" id="btnGeo">
+        <i class="fas fa-crosshairs"></i>
+        Use My Location
+      </button>
+      <form class="hero-search-form" id="heroSearchForm" autocomplete="off">
+        <div class="hsf-wrap">
+          <i class="fas fa-search hsf-icon"></i>
+          <input type="text" id="cityInput"
+                 placeholder="Search city, e.g. Berlin, London, Tokyo…">
+          <button type="submit" class="hsf-btn">
+            <span>Search</span>
+            <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Quick German cities -->
+    <div class="quick-cities" id="cities">
+      <button class="qc-btn" onclick="triggerSearch('Berlin')">Berlin</button>
+      <button class="qc-btn" onclick="triggerSearch('München')">München</button>
+      <button class="qc-btn" onclick="triggerSearch('Hamburg')">Hamburg</button>
+      <button class="qc-btn" onclick="triggerSearch('Frankfurt')">Frankfurt</button>
+      <button class="qc-btn" onclick="triggerSearch('Köln')">Köln</button>
+      <button class="qc-btn" onclick="triggerSearch('Stuttgart')">Stuttgart</button>
+      <button class="qc-btn" onclick="triggerSearch('Düsseldorf')">Düsseldorf</button>
+      <button class="qc-btn" onclick="triggerSearch('Dresden')">Dresden</button>
+      <button class="qc-btn" onclick="triggerSearch('Leipzig')">Leipzig</button>
+      <button class="qc-btn" onclick="triggerSearch('Hannover')">Hannover</button>
+    </div>
+  </div>
+
+  <!-- Scroll arrow -->
+  <div class="scroll-hint" id="scrollHint">
+    <i class="fas fa-chevron-down"></i>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     MAIN CONTENT (revealed after search)
+══════════════════════════════════════════════ -->
+<main class="main-wrap" id="mainWrap">
+  <div class="main-inner">
+
+    <!-- Skeleton loading -->
+    <div class="state-skeleton" id="stateSkeleton">
+      <div class="skel-card">
+        <div class="skel-row skel-hdr">
+          <div class="skel skel-title"></div>
+          <div class="skel skel-sq"></div>
+        </div>
+        <div class="skel skel-temp"></div>
+        <div class="skel skel-line w70"></div>
+        <div class="skel-grid-4">
+          <div class="skel skel-box"></div>
+          <div class="skel skel-box"></div>
+          <div class="skel skel-box"></div>
+          <div class="skel skel-box"></div>
+        </div>
+      </div>
+      <div class="skel-card skel-card-slim">
+        <div class="skel skel-title w40"></div>
+        <div class="skel-hourly-row">
+          <div class="skel skel-hour"></div>
+          <div class="skel skel-hour"></div>
+          <div class="skel skel-hour"></div>
+          <div class="skel skel-hour"></div>
+          <div class="skel skel-hour"></div>
+          <div class="skel skel-hour"></div>
+        </div>
       </div>
     </div>
-  </section>
 
-  <!-- ══ MAIN ══ -->
-  <main class="main-content">
-    <div class="wrap">
+    <!-- Error state -->
+    <div class="state-error" id="stateError">
+      <div class="se-icon"><i class="fas fa-cloud-exclamation"></i></div>
+      <h3>Location Not Found</h3>
+      <p id="seMsg">We couldn't find that city. Please check the spelling and try again.</p>
+      <button class="btn-retry" id="btnRetry">
+        <i class="fas fa-rotate-right"></i> Try Again
+      </button>
+    </div>
 
-      <!-- Loading -->
-      <div class="loading" id="loading">
-        <div class="loading-spinner"></div>
-        <p>Fetching weather data…</p>
-      </div>
+    <!-- Offline state -->
+    <div class="state-offline" id="stateOffline">
+      <div class="se-icon"><i class="fas fa-wifi-slash"></i></div>
+      <h3>No Internet Connection</h3>
+      <p>Please check your connection and try again.</p>
+    </div>
 
-      <!-- Error -->
-      <div class="error-card" id="errorCard">
-        <div class="error-icon"><i class="fas fa-exclamation-circle"></i></div>
-        <div>
-          <h3>Location Not Found</h3>
-          <p id="errorMessage">City not found. Please check the spelling and try again.</p>
-        </div>
-      </div>
+    <!-- ── Content panels (shown after successful search) ── -->
+    <div class="content-panels" id="contentPanels">
 
-      <!-- ── Weather Card ── -->
-      <div class="weather-card" id="weatherCard">
-
-        <!-- Card Header -->
-        <div class="wc-header">
-          <div class="wc-location">
-            <i class="fas fa-map-marker-alt wc-pin"></i>
-            <div class="wc-loc-text">
-              <h2 id="cityName">—</h2>
-              <p id="countryDate">—</p>
+      <!-- 1. Current Weather Card -->
+      <section class="wx-panel panel-appear" id="panelCurrent">
+        <div class="wxp-top">
+          <div class="wxp-location">
+            <i class="fas fa-map-marker-alt wxp-pin"></i>
+            <div>
+              <h2 id="detailCity">—</h2>
+              <p id="detailDate">—</p>
             </div>
           </div>
-          <div class="wc-icon-wrap">
-            <img id="weatherIcon" src="" alt="Weather icon">
-          </div>
+          <img id="detailIcon" class="wxp-big-icon" src="" alt="">
         </div>
-
-        <!-- Card Main -->
-        <div class="wc-main">
-          <div class="wc-temp-wrap">
-            <span class="wc-temp" id="temperature">—</span>
-            <div class="unit-toggle">
-              <button class="unit-btn active" id="celsiusBtn" onclick="switchUnit('C')">°C</button>
-              <span class="unit-div">|</span>
-              <button class="unit-btn" id="fahrenheitBtn" onclick="switchUnit('F')">°F</button>
+        <div class="wxp-temp-row">
+          <div class="wxp-temp-wrap">
+            <span class="wxp-temp" id="detailTemp">—</span>
+            <div class="unit-sw">
+              <button class="u-btn active" id="celsiusBtn" onclick="switchUnit('C')">°C</button>
+              <span class="u-sep">|</span>
+              <button class="u-btn" id="fahrenheitBtn" onclick="switchUnit('F')">°F</button>
             </div>
           </div>
-          <div class="wc-cond-wrap">
-            <p class="wc-desc" id="weatherDesc">—</p>
-            <p class="wc-feels" id="feelsLikeMain">Feels like —</p>
+          <div class="wxp-cond">
+            <p class="wxp-cond-text" id="detailCond">—</p>
+            <p class="wxp-feels" id="detailFeels">—</p>
+            <p class="wxp-hl" id="detailHL">—</p>
           </div>
         </div>
-
-        <!-- Card Details Grid -->
-        <div class="wc-details">
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-humidity"><i class="fas fa-tint"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="humidity">—</span>
-              <span class="wcd-lbl">Humidity</span>
-            </div>
+        <div class="wxp-details-grid">
+          <div class="wdg-item">
+            <div class="wdg-icon wdg-hum"><i class="fas fa-droplet"></i></div>
+            <span class="wdg-val" id="dHumidity">—</span>
+            <span class="wdg-lbl">Humidity</span>
           </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-wind"><i class="fas fa-wind"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="windSpeed">—</span>
-              <span class="wcd-lbl">Wind Speed</span>
-            </div>
+          <div class="wdg-item">
+            <div class="wdg-icon wdg-wind"><i class="fas fa-wind"></i></div>
+            <span class="wdg-val" id="dWind">—</span>
+            <span class="wdg-lbl">Wind</span>
           </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-pressure"><i class="fas fa-compress-arrows-alt"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="pressure">—</span>
-              <span class="wcd-lbl">Pressure</span>
-            </div>
+          <div class="wdg-item">
+            <div class="wdg-icon wdg-pres"><i class="fas fa-gauge-high"></i></div>
+            <span class="wdg-val" id="dPressure">—</span>
+            <span class="wdg-lbl">Pressure</span>
           </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-visibility"><i class="fas fa-eye"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="visibility">—</span>
-              <span class="wcd-lbl">Visibility</span>
-            </div>
-          </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-sunrise"><i class="fas fa-sun"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="sunrise">—</span>
-              <span class="wcd-lbl">Sunrise</span>
-            </div>
-          </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-sunset"><i class="fas fa-moon"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="sunset">—</span>
-              <span class="wcd-lbl">Sunset</span>
-            </div>
-          </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-uv"><i class="fas fa-sun"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="uvIndex">—</span>
-              <span class="wcd-lbl">UV Index</span>
-            </div>
-          </div>
-          <div class="wc-detail">
-            <div class="wcd-icon wcd-cloud"><i class="fas fa-cloud"></i></div>
-            <div class="wcd-body">
-              <span class="wcd-val" id="cloudiness">—</span>
-              <span class="wcd-lbl">Cloud Cover</span>
-            </div>
+          <div class="wdg-item">
+            <div class="wdg-icon wdg-vis"><i class="fas fa-eye"></i></div>
+            <span class="wdg-val" id="dVisibility">—</span>
+            <span class="wdg-lbl">Visibility</span>
           </div>
         </div>
-      </div>
-
-      <!-- ── 5-Day Forecast ── -->
-      <section class="forecast-section" id="forecast">
-        <div class="forecast-head">
-          <h2><i class="fas fa-calendar-alt"></i> 5-Day Forecast</h2>
-        </div>
-        <div class="forecast-loading" id="forecastLoading">
-          <div class="loading-spinner sm"></div>
-          <span>Loading forecast…</span>
-        </div>
-        <div class="forecast-grid" id="forecastGrid"></div>
       </section>
 
-      <!-- Recent Searches -->
-      <div class="recent-searches" id="recentSearches">
+      <!-- 2. Advanced Details -->
+      <section class="adv-panel panel-appear" id="panelAdv">
+
+        <!-- Wind Compass -->
+        <div class="adv-card">
+          <div class="adv-head"><i class="fas fa-compass"></i> Wind</div>
+          <div class="compass-wrap">
+            <div class="compass-ring">
+              <span class="cr-label cr-n">N</span>
+              <span class="cr-label cr-e">E</span>
+              <span class="cr-label cr-s">S</span>
+              <span class="cr-label cr-w">W</span>
+              <div class="compass-needle" id="compassNeedle">
+                <div class="needle-n"></div>
+                <div class="needle-s"></div>
+              </div>
+              <div class="compass-dot"></div>
+            </div>
+          </div>
+          <p class="adv-val" id="advWindSpeed">—</p>
+          <p class="adv-sub" id="advWindDir">—</p>
+        </div>
+
+        <!-- UV Index -->
+        <div class="adv-card">
+          <div class="adv-head"><i class="fas fa-sun"></i> UV Index</div>
+          <div class="uv-display">
+            <span class="uv-num" id="uvNum">—</span>
+            <span class="uv-cat" id="uvCat">—</span>
+          </div>
+          <div class="uv-bar-wrap">
+            <div class="uv-gradient-bar">
+              <div class="uv-marker" id="uvMarker" style="left:0%"></div>
+            </div>
+            <div class="uv-scale-labels">
+              <span>Low</span><span>Mod</span><span>High</span><span>V.High</span><span>Ext</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Humidity Gauge -->
+        <div class="adv-card">
+          <div class="adv-head"><i class="fas fa-droplet"></i> Humidity</div>
+          <div class="hum-gauge-wrap">
+            <svg class="hum-svg" viewBox="0 0 140 140">
+              <defs>
+                <linearGradient id="humGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#06b6d4"/>
+                  <stop offset="100%" stop-color="#6366f1"/>
+                </linearGradient>
+              </defs>
+              <circle class="hum-track" cx="70" cy="70" r="54"/>
+              <circle class="hum-fill" id="humFill" cx="70" cy="70" r="54"/>
+            </svg>
+            <div class="hum-center">
+              <span id="humPct">—</span>
+              <small>%</small>
+            </div>
+          </div>
+          <p class="adv-sub" id="humDesc">—</p>
+        </div>
+
+        <!-- Pressure -->
+        <div class="adv-card">
+          <div class="adv-head"><i class="fas fa-gauge-high"></i> Pressure</div>
+          <div class="pres-val-wrap">
+            <span class="pres-big" id="presBig">—</span>
+            <span class="pres-unit">hPa</span>
+          </div>
+          <div class="pres-trend" id="presTrend">
+            <i class="fas fa-arrow-up" id="presTrendIcon"></i>
+            <span id="presTrendText">—</span>
+          </div>
+          <div class="pres-bar-wrap">
+            <div class="pres-bar">
+              <div class="pres-marker" id="presMarker"></div>
+            </div>
+            <div class="pres-bar-labels">
+              <span>Low</span><span>Normal</span><span>High</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sunrise / Sunset -->
+        <div class="adv-card sun-arc-card">
+          <div class="adv-head"><i class="fas fa-sun"></i> Sun</div>
+          <div class="sun-arc-wrap">
+            <svg class="sun-arc-svg" viewBox="0 0 200 120">
+              <path class="arc-track"
+                d="M 15,100 A 85,85 0 0,1 185,100"
+                fill="none" stroke="rgba(255,255,255,.12)" stroke-width="5" stroke-linecap="round"/>
+              <path class="arc-fill" id="arcFill"
+                d="M 15,100 A 85,85 0 0,1 185,100"
+                fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"
+                stroke-dasharray="267" stroke-dashoffset="267"/>
+              <circle id="sunArcDot" cx="15" cy="100" r="8" fill="#fbbf24"
+                filter="drop-shadow(0 0 6px rgba(251,191,36,.8))"/>
+            </svg>
+          </div>
+          <div class="sun-times-row">
+            <div class="stt">
+              <i class="fas fa-sunrise"></i>
+              <span id="advSunrise">—</span>
+            </div>
+            <div class="stt">
+              <i class="fas fa-sunset"></i>
+              <span id="advSunset">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cloud Cover -->
+        <div class="adv-card">
+          <div class="adv-head"><i class="fas fa-cloud"></i> Cloud Cover</div>
+          <div class="cloud-big" id="cloudBig">—</div>
+          <div class="cloud-bar-outer">
+            <div class="cloud-bar-inner" id="cloudBarInner"></div>
+          </div>
+          <p class="adv-sub" id="cloudDesc">—</p>
+        </div>
+
+      </section>
+
+      <!-- 3. Hourly Forecast -->
+      <section class="hourly-panel panel-appear" id="hourly">
+        <div class="panel-title-row">
+          <h2><i class="fas fa-clock"></i> 24-Hour Forecast</h2>
+          <div class="scroll-btns">
+            <button class="scr-btn" id="scrLeft"><i class="fas fa-chevron-left"></i></button>
+            <button class="scr-btn" id="scrRight"><i class="fas fa-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="hourly-scroll" id="hourlyScroll">
+          <div class="hourly-track" id="hourlyTrack"></div>
+        </div>
+      </section>
+
+      <!-- 4. Temperature Chart -->
+      <section class="chart-panel panel-appear" id="panelChart">
+        <h2><i class="fas fa-chart-line"></i> Temperature Trend</h2>
+        <div class="chart-outer">
+          <canvas id="tempChart"></canvas>
+        </div>
+      </section>
+
+      <!-- 5. 5-Day Forecast -->
+      <section class="forecast-panel panel-appear" id="forecast">
+        <h2><i class="fas fa-calendar-week"></i> 5-Day Forecast</h2>
+        <div class="forecast-rows" id="forecastRows"></div>
+      </section>
+
+      <!-- Recent searches (only shown here, after search) -->
+      <div class="recent-wrap" id="recentWrap">
         <h3><i class="fas fa-history"></i> Recent Searches</h3>
-        <div class="recent-list" id="recentList"></div>
+        <div class="recent-chips" id="recentChips"></div>
       </div>
 
+    </div><!-- /content-panels -->
+  </div><!-- /main-inner -->
+</main>
+
+<!-- ══════════════════════════════════════════════
+     SUBSCRIBE SECTION
+══════════════════════════════════════════════ -->
+<section class="sub-section" id="subscribe">
+  <div class="sub-inner">
+    <div class="sub-left">
+      <div class="sub-badge"><i class="fas fa-gift"></i> 100% FREE · Always</div>
+      <h2>Never Miss Important Weather</h2>
+      <p>Join thousands who trust WeatherPro for daily forecasts and severe weather alerts.</p>
+      <ul class="sub-features">
+        <li><i class="fas fa-circle-check"></i> Daily weather forecast</li>
+        <li><i class="fas fa-circle-check"></i> Severe weather alerts</li>
+        <li><i class="fas fa-circle-check"></i> Weekly summary every Sunday</li>
+        <li><i class="fas fa-circle-check"></i> Zero ads. Zero spam. Ever.</li>
+      </ul>
     </div>
-  </main>
-
-  <!-- ══ ABOUT ══ -->
-  <section class="about-section" id="about">
-    <div class="wrap">
-      <div class="about-grid">
-        <div class="about-card">
-          <div class="about-icon"><i class="fas fa-satellite-dish"></i></div>
-          <h3>Real-Time Data</h3>
-          <p>Live weather data from thousands of stations worldwide, updated every 10 minutes.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-icon"><i class="fas fa-map-marked-alt"></i></div>
-          <h3>Global Coverage</h3>
-          <p>Search any city in the world and get accurate, localized weather information instantly.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-icon"><i class="fas fa-chart-line"></i></div>
-          <h3>5-Day Forecast</h3>
-          <p>Plan ahead with reliable forecasts including temperature ranges and conditions.</p>
-        </div>
+    <div class="sub-right">
+      <div class="sub-form-card" id="subFormCard">
+        <h3>Join our weather community</h3>
+        <form class="sub-form" id="subForm" novalidate>
+          <div class="sub-field">
+            <i class="fas fa-envelope"></i>
+            <input type="email" id="subEmail" placeholder="Your email address" required>
+          </div>
+          <div class="sub-field">
+            <i class="fas fa-city"></i>
+            <input type="text" id="subCity" placeholder="Your city (optional)">
+          </div>
+          <div class="sub-err" id="subErr"></div>
+          <button type="submit" class="btn-subscribe" id="btnSubscribe">
+            <i class="fas fa-paper-plane"></i>
+            <span>Subscribe Free</span>
+          </button>
+        </form>
+        <p class="sub-note">We collect only your email and city. Nothing else.</p>
+      </div>
+      <div class="sub-success" id="subSuccess">
+        <div class="ss-check"><i class="fas fa-circle-check"></i></div>
+        <h3>You're in!</h3>
+        <p>Welcome to WeatherPro. Your first forecast arrives soon.</p>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ══ FOOTER ══ -->
-  <footer class="footer">
-    <div class="wrap">
-      <div class="footer-top">
-        <div class="footer-logo">
-          <i class="fas fa-cloud-sun-rain"></i>
-          <span>Weather<strong>Pro</strong></span>
-        </div>
-        <nav class="footer-nav">
-          <a href="index.html">Home</a>
-          <a href="#forecast">Forecast</a>
-          <a href="#cities">Cities</a>
-          <a href="#about">About</a>
-        </nav>
+<!-- ══════════════════════════════════════════════
+     ABOUT
+══════════════════════════════════════════════ -->
+<section class="about-section" id="about">
+  <div class="about-inner">
+    <h2 class="about-title anim-fade-up">Why WeatherPro beats BBC Weather</h2>
+    <div class="about-grid anim-fade-up">
+      <div class="ab-card">
+        <div class="ab-icon"><i class="fas fa-bolt-lightning"></i></div>
+        <h3>Instant Loading</h3>
+        <p>Skeleton screens mean you never stare at a blank page. Data appears before you blink.</p>
       </div>
-      <div class="footer-bottom">
-        <p>&copy; 2025 WeatherPro. All rights reserved.</p>
-        <p>Powered by <a href="https://openweathermap.org" target="_blank" rel="noopener">OpenWeatherMap</a></p>
+      <div class="ab-card">
+        <div class="ab-icon"><i class="fas fa-ban"></i></div>
+        <h3>Zero Ads</h3>
+        <p>Pure weather, nothing else. No banner ads, pop-ups, or tracking scripts. Ever.</p>
+      </div>
+      <div class="ab-card">
+        <div class="ab-icon"><i class="fas fa-shield-halved"></i></div>
+        <h3>Validated Data</h3>
+        <p>Every API response is validated before display. Wrong data is caught and rejected.</p>
+      </div>
+      <div class="ab-card">
+        <div class="ab-icon"><i class="fas fa-mobile-screen-button"></i></div>
+        <h3>Mobile First</h3>
+        <p>Flawless on every screen. Swipe-friendly hourly forecast. One-tap city buttons.</p>
       </div>
     </div>
-  </footer>
+  </div>
+</section>
 
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/weather.js"></script>
+<!-- ══════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════ -->
+<footer class="site-footer">
+  <div class="ft-inner">
+    <div class="ft-top">
+      <div class="ft-brand">
+        <div class="logo-mark sm"><i class="fas fa-cloud-bolt"></i></div>
+        <span>Weather<strong>Pro</strong></span>
+      </div>
+      <nav class="ft-nav">
+        <a href="#forecast">5-Day</a>
+        <a href="#hourly">Hourly</a>
+        <a href="#cities">Cities</a>
+        <a href="#subscribe">Subscribe</a>
+        <a href="#about">About</a>
+      </nav>
+    </div>
+    <div class="ft-sub-row">
+      <p>Get daily forecasts free — no spam, no ads.</p>
+      <form class="ft-sub-form" id="ftSubForm" autocomplete="off">
+        <input type="email" id="ftSubEmail" placeholder="your@email.com" required>
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+    <div class="ft-bottom">
+      <p>&copy; 2025 WeatherPro. All rights reserved.</p>
+      <p>Powered by <a href="https://openweathermap.org" target="_blank" rel="noopener">OpenWeatherMap</a></p>
+    </div>
+  </div>
+</footer>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/weather.js"></script>
 </body>
 </html>
