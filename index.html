@@ -55,6 +55,16 @@
 
   <!-- Animated weather background layers -->
   <div class="wx-bg" id="wxBg">
+    <!-- Background gradient layers (reliable opacity cross-fade) -->
+    <div class="wxbg wxbg-default active" id="wxBgDefault"></div>
+    <div class="wxbg wxbg-sunny"          id="wxBgSunny"></div>
+    <div class="wxbg wxbg-night"          id="wxBgNight"></div>
+    <div class="wxbg wxbg-cloudy"         id="wxBgCloudy"></div>
+    <div class="wxbg wxbg-ncloud"         id="wxBgNcloud"></div>
+    <div class="wxbg wxbg-rainy"          id="wxBgRainy"></div>
+    <div class="wxbg wxbg-thunder"        id="wxBgThunder"></div>
+    <div class="wxbg wxbg-snowy"          id="wxBgSnowy"></div>
+    <div class="wxbg wxbg-mist"           id="wxBgMist"></div>
     <!-- Sun layer -->
     <div class="wx-layer wx-sun-layer" id="wxSunLayer">
       <div class="sun-wrap">
@@ -102,7 +112,7 @@
       </div>
       <div class="hc-temp-row">
         <span class="hc-temp" id="heroTemp">—</span>
-        <img class="hc-icon" id="heroIcon" src="" alt="">
+        <img class="hc-icon" id="heroIcon" alt="" style="display:none">
       </div>
       <p class="hc-cond" id="heroCond">Search a city to see live weather</p>
       <div class="hc-meta">
@@ -114,10 +124,16 @@
 
     <!-- Location + search -->
     <div class="hero-actions">
-      <button class="btn-geo" id="btnGeo">
-        <i class="fas fa-crosshairs"></i>
-        Use My Location
-      </button>
+      <div class="hero-btn-row">
+        <button class="btn-geo" id="btnGeo">
+          <i class="fas fa-crosshairs"></i>
+          Use My Location
+        </button>
+        <button class="btn-notify" id="btnNotify">
+          <i class="fas fa-bell"></i>
+          Enable Alerts
+        </button>
+      </div>
       <form class="hero-search-form" id="heroSearchForm" autocomplete="off">
         <div class="hsf-wrap">
           <i class="fas fa-search hsf-icon"></i>
@@ -217,7 +233,7 @@
               <p id="detailDate">—</p>
             </div>
           </div>
-          <img id="detailIcon" class="wxp-big-icon" src="" alt="">
+          <img id="detailIcon" class="wxp-big-icon" alt="" style="display:none">
         </div>
         <div class="wxp-temp-row">
           <div class="wxp-temp-wrap">
@@ -407,6 +423,24 @@
       <section class="forecast-panel panel-appear" id="forecast">
         <h2><i class="fas fa-calendar-week"></i> 5-Day Forecast</h2>
         <div class="forecast-rows" id="forecastRows"></div>
+      </section>
+
+      <!-- 6. Local News -->
+      <section class="news-panel panel-appear" id="news">
+        <div class="panel-title-row">
+          <h2><i class="fas fa-newspaper"></i> Local News &nbsp;&middot;&nbsp; <span id="newsCity">—</span></h2>
+          <button class="news-refresh" id="newsRefresh" title="Refresh news"><i class="fas fa-rotate-right"></i></button>
+        </div>
+        <div class="news-skel" id="newsSkel" style="display:none">
+          <div class="news-skel-grid">
+            <div class="skel news-skel-card"></div>
+            <div class="skel news-skel-card"></div>
+            <div class="skel news-skel-card"></div>
+            <div class="skel news-skel-card"></div>
+          </div>
+        </div>
+        <div class="news-grid" id="newsGrid"></div>
+        <div class="news-msg" id="newsMsg" style="display:none"></div>
       </section>
 
       <!-- Recent searches (only shown here, after search) -->

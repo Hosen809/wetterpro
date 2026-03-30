@@ -69,7 +69,25 @@ function getWeatherState(iconCode) {
   return 'default';
 }
 
+// Map state → background layer element ID
+const BG_IDS = {
+  default:        'wxBgDefault',
+  sunny:          'wxBgSunny',
+  night:          'wxBgNight',
+  cloudy:         'wxBgCloudy',
+  'night-cloudy': 'wxBgNcloud',
+  rainy:          'wxBgRainy',
+  thunder:        'wxBgThunder',
+  snowy:          'wxBgSnowy',
+  mist:           'wxBgMist'
+};
+
 function applyWeatherState(state) {
+  // Switch background layer via opacity cross-fade (fixes gradient transition bug)
+  document.querySelectorAll('.wxbg').forEach(el => el.classList.remove('active'));
+  $(BG_IDS[state] || BG_IDS.default)?.classList.add('active');
+
+  // Switch hero class for animation layers (sun/moon/stars/clouds/rain/snow/lightning)
   const hero   = $('heroScreen');
   const states = ['sunny','night','cloudy','night-cloudy','rainy','thunder','snowy','mist'];
   states.forEach(s => hero.classList.remove('wx-' + s));
@@ -82,9 +100,9 @@ function applyWeatherState(state) {
   $('wxStarsLayer').innerHTML = '';
 
   // Generate new particles
-  if (state === 'rainy')                        generateRain(100);
-  if (state === 'thunder')                      generateRain(60);
-  if (state === 'snowy')                        generateSnow();
+  if (state === 'rainy')                             generateRain(100);
+  if (state === 'thunder')                           generateRain(60);
+  if (state === 'snowy')                             generateSnow();
   if (state === 'night' || state === 'night-cloudy') generateStars();
 }
 
@@ -214,7 +232,7 @@ function showContent() {
   $('stateError').classList.remove('active');
   $('stateOffline').classList.remove('active');
   $('contentPanels').classList.add('active');
-  setTimeout(initScrollAnimations, 80);
+  setTimeout(initContentAnimations, 80);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -229,10 +247,11 @@ function displayHero(data) {
   $('heroCond').textContent  = weather[0].description;
   $('heroFeels').textContent = `Feels like ${Math.round(main.feels_like)}°C`;
 
-  const iconEl = $('heroIcon');
-  iconEl.src   = `https://openweathermap.org/img/wn/${icon}@2x.png`;
-  iconEl.alt   = weather[0].description;
+  const iconEl  = $('heroIcon');
+  iconEl.src    = `https://openweathermap.org/img/wn/${icon}@2x.png`;
+  iconEl.alt    = weather[0].description;
   iconEl.style.display = 'block';
+  iconEl.onerror = () => { iconEl.style.display = 'none'; };
 
   applyWeatherState(getWeatherState(icon));
   startClock(timezone);
@@ -247,8 +266,11 @@ function displayCurrentWeather(data) {
 
   $('detailCity').textContent = `${name}, ${sys.country}`;
   $('detailDate').textContent = formatLocalDate(dt, timezone);
-  $('detailIcon').src         = `https://openweathermap.org/img/wn/${icon}@4x.png`;
-  $('detailIcon').alt         = weather[0].description;
+  const dIcon   = $('detailIcon');
+  dIcon.src     = `https://openweathermap.org/img/wn/${icon}@4x.png`;
+  dIcon.alt     = weather[0].description;
+  dIcon.style.display = 'block';
+  dIcon.onerror = () => { dIcon.style.display = 'none'; };
 
   $('detailTemp').textContent = currentUnit === 'C'
     ? `${toC(main.temp)}°C`
@@ -488,17 +510,18 @@ function displayFiveDayForecast(forecastData) {
   if (!forecastData?.list?.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
-  // Group by calendar day, skip today
-  const today  = new Date().toDateString();
-  const dayMap = {};
+  // Group by UTC ISO date (YYYY-MM-DD) — robust across all timezones
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const dayMap   = {};
+  const dayOrder = [];
   forecastData.list.forEach(item => {
-    const key = new Date(item.dt * 1000).toDateString();
-    if (key === today) return;
-    if (!dayMap[key]) dayMap[key] = [];
+    const key = new Date(item.dt * 1000).toISOString().slice(0, 10);
+    if (key === todayISO) return;
+    if (!dayMap[key]) { dayMap[key] = []; dayOrder.push(key); }
     dayMap[key].push(item);
   });
 
-  const dayKeys = Object.keys(dayMap).slice(0, 5);
+  const dayKeys = dayOrder.slice(0, 5);
   if (!dayKeys.length) { panel.style.display = 'none'; return; }
 
   // Week-wide range for the temperature bar
@@ -518,9 +541,9 @@ function displayFiveDayForecast(forecastData) {
                      || items[Math.floor(items.length / 2)];
     const icon     = mid.weather[0].icon;
     const cond     = mid.weather[0].description;
-    const d        = new Date(key);
-    const dayName  = d.toLocaleDateString('en-US', { weekday: 'short' });
-    const dateStr  = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const d        = new Date(key + 'T12:00:00Z');
+    const dayName  = d.toLocaleDateString('en-US', { weekday: 'short',  timeZone: 'UTC' });
+    const dateStr  = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
     // Bar: left and right % within the week's temp range
     const leftPct  = ((dayMin - weekMin) / weekSpan * 100).toFixed(1);
@@ -698,6 +721,14 @@ async function triggerSearch(city) {
     const coord = weatherData.coord;
     fetchUV(coord.lat, coord.lon).then(uv => displayAdvanced(weatherData, uv));
 
+    // News section (non-blocking)
+    $('newsCity').textContent     = weatherData.name;
+    $('newsSkel').style.display   = 'block';
+    $('newsGrid').innerHTML       = '';
+    $('newsMsg').style.display    = 'none';
+    fetchNews(weatherData.name, weatherData.sys?.country)
+      .then(articles => displayNews(articles, weatherData.name));
+
     // Recent searches
     addRecent(weatherData.name, weatherData.weather[0].icon);
     renderRecent();
@@ -763,6 +794,14 @@ function handleGeoLocation() {
 
         fetchUV(weatherData.coord.lat, weatherData.coord.lon)
           .then(uv => displayAdvanced(weatherData, uv));
+
+        // News section
+        $('newsCity').textContent     = weatherData.name;
+        $('newsSkel').style.display   = 'block';
+        $('newsGrid').innerHTML       = '';
+        $('newsMsg').style.display    = 'none';
+        fetchNews(weatherData.name, weatherData.sys?.country)
+          .then(articles => displayNews(articles, weatherData.name));
 
         addRecent(weatherData.name, weatherData.weather[0].icon);
         renderRecent();
@@ -868,21 +907,220 @@ function wireSubscribeForm(formId, emailId, cityId, cardId, successId, errId) {
 // SCROLL-TRIGGERED ANIMATIONS  (IntersectionObserver)
 // ══════════════════════════════════════════════════════════════
 let animObserver = null;
-function initScrollAnimations() {
+
+// Called once on load — observes static page elements (about, etc.)
+function initStaticAnimations() {
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); }
+    });
+  }, { threshold: 0.06 });
+  document.querySelectorAll('.anim-fade-up').forEach(el => obs.observe(el));
+}
+
+// Called after each search — resets & re-observes content panels only
+function initContentAnimations() {
   if (animObserver) animObserver.disconnect();
   animObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('in-view');
-        animObserver.unobserve(entry.target);
-      }
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); animObserver.unobserve(e.target); }
     });
   }, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
 
-  document.querySelectorAll('.panel-appear, .anim-fade-up').forEach(el => {
-    // Re-observe even if already seen (re-rendered content)
+  document.querySelectorAll('.panel-appear').forEach(el => {
     el.classList.remove('in-view');
     animObserver.observe(el);
+  });
+  // Also pick up any static elements not yet animated
+  document.querySelectorAll('.anim-fade-up').forEach(el => {
+    if (!el.classList.contains('in-view')) animObserver.observe(el);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// NEWS  (GNews.io – free tier, CORS-friendly)
+// ══════════════════════════════════════════════════════════════
+async function fetchNews(city, country) {
+  const key = (typeof CONFIG !== 'undefined') && CONFIG.NEWS_API_KEY;
+  if (!key || key.startsWith('YOUR_')) return null; // placeholder not replaced
+  const lang = country === 'DE' ? 'de' : 'en';
+  const url  = `https://gnews.io/api/v4/search?q=${encodeURIComponent(city)}&lang=${lang}&country=any&max=4&sortby=publishedAt&apikey=${key}`;
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 8000);
+    const res  = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.articles) ? data.articles : null;
+  } catch (_) { return null; }
+}
+
+function displayNews(articles, city) {
+  const grid  = $('newsGrid');
+  const skel  = $('newsSkel');
+  const msgEl = $('newsMsg');
+  if (!grid || !skel || !msgEl) return;
+
+  if ($('newsCity')) $('newsCity').textContent = city || '—';
+  skel.style.display = 'none';
+
+  if (articles === null) {
+    // API key not configured
+    grid.innerHTML = '';
+    msgEl.innerHTML = `<div class="news-no-key">
+      <div class="nnk-icon"><i class="fas fa-newspaper"></i></div>
+      <p>To show local news, add your free <strong>GNews API key</strong> to <code>js/config.js</code> (<code>NEWS_API_KEY</code>).</p>
+      <a href="https://gnews.io" target="_blank" rel="noopener" class="btn-get-news-key">
+        <i class="fas fa-external-link-alt"></i>&nbsp;Get Free Key at gnews.io
+      </a>
+    </div>`;
+    msgEl.style.display = 'block';
+    return;
+  }
+
+  msgEl.style.display = 'none';
+
+  if (!articles.length) {
+    grid.innerHTML = '<p class="news-empty"><i class="fas fa-search"></i> No recent news found for this city.</p>';
+    return;
+  }
+
+  grid.innerHTML = articles.map(a => {
+    const time    = getTimeAgo(new Date(a.publishedAt));
+    const imgHtml = a.image
+      ? `<div class="nc-img"><img src="${escAttr(a.image)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('nc-img-err');this.remove()"></div>`
+      : `<div class="nc-img nc-img-err"><i class="fas fa-newspaper"></i></div>`;
+    return `<a class="news-card" href="${escAttr(a.url)}" target="_blank" rel="noopener">
+      ${imgHtml}
+      <div class="nc-body">
+        <h4 class="nc-title">${escHtml(a.title)}</h4>
+        <div class="nc-meta">
+          <span class="nc-source">${escHtml(a.source?.name || '')}</span>
+          <span class="nc-time">${time}</span>
+        </div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+function getTimeAgo(date) {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (s < 60)    return 'Just now';
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+function escHtml(s) {
+  return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+}
+function escAttr(s) {
+  return s ? s.replace(/"/g,'&quot;') : '#';
+}
+
+// ══════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS  (Notification API)
+// ══════════════════════════════════════════════════════════════
+let notificationsEnabled = false;
+let notifInterval        = null;
+let prevNotifWeather     = null;
+
+function initNotifications() {
+  updateNotifyBtn();
+  $('btnNotify')?.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      alert('Your browser does not support push notifications.');
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      notificationsEnabled = !notificationsEnabled;
+      notificationsEnabled ? startAlerts() : stopAlerts();
+    } else if (Notification.permission !== 'denied') {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') { notificationsEnabled = true; startAlerts(); }
+    } else {
+      alert('Notifications are blocked. Enable them in your browser settings, then reload.');
+    }
+    updateNotifyBtn();
+  });
+}
+
+function updateNotifyBtn() {
+  const btn = $('btnNotify');
+  if (!btn) return;
+  const on = notificationsEnabled && Notification?.permission === 'granted';
+  btn.innerHTML = on
+    ? '<i class="fas fa-bell-slash"></i> Alerts Active'
+    : '<i class="fas fa-bell"></i> Enable Alerts';
+  btn.classList.toggle('active', on);
+}
+
+function startAlerts() {
+  stopAlerts();
+  notifInterval = setInterval(checkWeatherAlerts, 30 * 60 * 1000);
+  if (lastCity) checkWeatherAlerts();
+}
+
+function stopAlerts() {
+  if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
+}
+
+async function checkWeatherAlerts() {
+  if (!lastCity || !notificationsEnabled || Notification?.permission !== 'granted') return;
+  try {
+    const [weather, forecast] = await Promise.all([fetchWeather(lastCity), fetchForecast(lastCity)]);
+    const icon = weather.weather[0].icon;
+    const code = icon.slice(0, 2);
+    const wind = weather.wind.speed * 3.6;
+    const temp = weather.main.temp;
+    const city = weather.name;
+
+    if (code === '11')                          pushNote('⚡ Thunderstorm Warning', `Thunderstorm in ${city}! Stay safe indoors.`);
+    else if (['09','10'].includes(code))        pushNote('🌧️ Rain Alert',           `Currently raining in ${city}.`);
+    else if (code === '13')                     pushNote('❄️ Snow Alert',            `Snow falling in ${city}. Dress warmly!`);
+    if (wind > 50)                              pushNote('💨 Strong Winds',          `Wind gusts of ${Math.round(wind)} km/h in ${city}.`);
+
+    if (forecast?.list?.[0]) {
+      const pop = (forecast.list[0].pop || 0) * 100;
+      if (pop > 60 && !['09','10','11'].includes(code))
+        pushNote('🌧️ Rain Expected', `${Math.round(pop)}% chance of rain in ${city} soon.`);
+    }
+
+    if (prevNotifWeather && (prevNotifWeather.main.temp - temp) >= 5)
+      pushNote('🌡️ Temperature Drop', `Temp in ${city} dropped ${Math.round(prevNotifWeather.main.temp - temp)}°C.`);
+
+    prevNotifWeather = weather;
+  } catch (_) {}
+}
+
+function pushNote(title, body) {
+  if (Notification?.permission !== 'granted') return;
+  try { new Notification(title, { body, tag: 'wp-' + title.replace(/\s/g,'').slice(0,12) }); } catch (_) {}
+}
+
+// ══════════════════════════════════════════════════════════════
+// NAV LINKS – smooth scroll, handles links to hidden sections
+// ══════════════════════════════════════════════════════════════
+function initNavLinks() {
+  document.querySelectorAll('a[href^="#"]').forEach(link => {
+    link.addEventListener('click', e => {
+      const id = link.getAttribute('href').slice(1);
+      if (!id) return;
+      const target = document.getElementById(id);
+      if (!target) return;
+      e.preventDefault();
+      // Content-dependent sections: scroll to top if not yet loaded
+      if (target.closest('#contentPanels') && !$('contentPanels').classList.contains('active')) {
+        $('heroScreen').scrollIntoView({ behavior: 'smooth' });
+      } else {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      // Close mobile menu
+      const nav = $('hdrMobileNav');
+      if (nav) nav.classList.remove('open');
+      const burger = $('hdrBurger');
+      if (burger) burger.innerHTML = '<i class="fas fa-bars"></i>';
+    });
   });
 }
 
@@ -973,11 +1211,29 @@ function init() {
   wireSubscribeForm('subForm',  'subEmail', 'subCity', 'subFormCard', 'subSuccess', 'subErr');
   wireSubscribeForm('ftSubForm','ftSubEmail', null, null, null, null);
 
+  // News refresh button
+  $('newsRefresh')?.addEventListener('click', () => {
+    if (lastCity && currentWeatherData?.weather) {
+      const w = currentWeatherData.weather;
+      $('newsSkel').style.display = 'block';
+      $('newsGrid').innerHTML     = '';
+      $('newsMsg').style.display  = 'none';
+      const btn = $('newsRefresh');
+      btn?.classList.add('spinning');
+      fetchNews(w.name, w.sys?.country).then(articles => {
+        btn?.classList.remove('spinning');
+        displayNews(articles, w.name);
+      });
+    }
+  });
+
   // UI systems
   initMobileMenu();
   initHeaderScroll();
   initOfflineDetection();
-  initScrollAnimations();
+  initNavLinks();           // smooth scroll + hidden-section guard
+  initStaticAnimations();   // about / subscribe section fade-in on load
+  initNotifications();      // bell button wiring
 
   // Clock starts showing local browser time until a city is searched
   startClock(-(new Date().getTimezoneOffset() * 60));

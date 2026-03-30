@@ -4,5 +4,7 @@ const CONFIG = {
   SUPABASE_URL: 'https://dbothtzowpilluggkrjr.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_xyzmmsvpXHKfDihWeSHrUA_WL1Wc7dL',
   ADMIN_USERNAME: 'razibkhan809',
-  ADMIN_PASSWORD: 'Razib@26101961'
+  ADMIN_PASSWORD: 'Razib@26101961',
+  // Register free at https://gnews.io — 100 requests/day, CORS-friendly
+  NEWS_API_KEY:   'YOUR_GNEWS_API_KEY'
 };
