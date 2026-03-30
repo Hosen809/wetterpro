@@ -30,6 +30,7 @@ let cityTimezone       = 0;
 let tempChartInstance  = null;
 let currentWxState     = '';
 let clockInterval      = null;
+let sessionSearches    = []; // session-only recent searches — cleared on page refresh
 
 // ── DOM helper ────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -637,30 +638,28 @@ function cloudDesc(c) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// RECENT SEARCHES  (only shown after a search, never on first load)
+// RECENT SEARCHES  (session-only — never persisted to localStorage)
 // ══════════════════════════════════════════════════════════════
-function getRecent() {
-  try { return JSON.parse(localStorage.getItem('wp_recent') || '[]'); } catch (_) { return []; }
+function addToSession(city, icon) {
+  sessionSearches = sessionSearches.filter(s => s.city.toLowerCase() !== city.toLowerCase());
+  sessionSearches.unshift({ city, icon });
+  if (sessionSearches.length > 5) sessionSearches.length = 5;
 }
-function addRecent(city, icon) {
-  let r = getRecent().filter(x => x.city.toLowerCase() !== city.toLowerCase());
-  r.unshift({ city, icon });
-  localStorage.setItem('wp_recent', JSON.stringify(r.slice(0, 8)));
-}
+
 function renderRecent() {
-  const recent = getRecent();
-  const wrap   = $('recentWrap');
-  const chips  = $('recentChips');
-  // Guard: never show on load, only when content panels are active
-  if (!recent.length || !$('contentPanels').classList.contains('active')) {
+  const wrap  = $('recentWrap');
+  const chips = $('recentChips');
+  if (!wrap || !chips) return;
+  // Only show after a search, never on page load
+  if (!sessionSearches.length || !$('contentPanels').classList.contains('active')) {
     wrap.classList.remove('active');
     return;
   }
   wrap.classList.add('active');
-  chips.innerHTML = recent.map(r => `
-    <button class="recent-chip" onclick="triggerSearch('${r.city.replace(/'/g,"\\'")}')">
-      <img src="https://openweathermap.org/img/wn/${r.icon}.png" alt="${r.city}">
-      ${r.city}
+  chips.innerHTML = sessionSearches.map(s => `
+    <button class="recent-chip" onclick="triggerSearch('${s.city.replace(/'/g,"\\'")}')">
+      <img src="https://openweathermap.org/img/wn/${s.icon}.png" alt="${s.city}">
+      ${s.city}
     </button>`).join('');
 }
 
@@ -730,7 +729,7 @@ async function triggerSearch(city) {
       .then(articles => displayNews(articles, weatherData.name));
 
     // Recent searches
-    addRecent(weatherData.name, weatherData.weather[0].icon);
+    addToSession(weatherData.name, weatherData.weather[0].icon);
     renderRecent();
 
     // Supabase tracking
@@ -803,7 +802,7 @@ function handleGeoLocation() {
         fetchNews(weatherData.name, weatherData.sys?.country)
           .then(articles => displayNews(articles, weatherData.name));
 
-        addRecent(weatherData.name, weatherData.weather[0].icon);
+        addToSession(weatherData.name, weatherData.weather[0].icon);
         renderRecent();
         saveSearch(weatherData);
       } catch (e) {
