@@ -30,6 +30,7 @@ let cityTimezone       = 0;
 let tempChartInstance  = null;
 let currentWxState     = '';
 let clockInterval      = null;
+let cityClockInterval  = null;
 let sessionSearches    = []; // session-only recent searches — cleared on page refresh
 
 // ── DOM helper ────────────────────────────────────────────────
@@ -711,6 +712,7 @@ async function triggerSearch(city) {
     // Render all panels
     displayHero(weatherData);
     displayCurrentWeather(weatherData);
+    loadCityInfo(weatherData);
     displayHourly(forecastData, weatherData.timezone);
     renderTempChart(forecastData, weatherData.timezone);
     displayFiveDayForecast(forecastData);
@@ -786,6 +788,7 @@ function handleGeoLocation() {
 
         displayHero(weatherData);
         displayCurrentWeather(weatherData);
+        loadCityInfo(weatherData);
         displayHourly(forecastData, weatherData.timezone);
         renderTempChart(forecastData, weatherData.timezone);
         displayFiveDayForecast(forecastData);
@@ -1179,6 +1182,135 @@ function wireSearchForm(formId, inputId) {
     const city = $(inputId)?.value.trim();
     if (city) triggerSearch(city);
   });
+}
+
+// ══════════════════════════════════════════════════════════════
+// CITY INFO  (Wikipedia + REST Countries + live clock)
+// ══════════════════════════════════════════════════════════════
+async function loadCityInfo(weatherData) {
+  const city    = weatherData.name;
+  const country = weatherData.sys.country;
+  const tz      = weatherData.timezone; // seconds offset from UTC
+
+  // Reset UI
+  if ($('cityInfoName')) $('cityInfoName').textContent = city;
+  if ($('wikiExtract'))  $('wikiExtract').textContent  = 'Loading city information…';
+  if ($('wikiImg'))      $('wikiImg').style.display    = 'none';
+  if ($('wikiLink'))     $('wikiLink').href            = '#';
+  if ($('countryFlag'))  $('countryFlag').textContent  = '🌍';
+  ['countryName','countryPop','countryCapital','countryCurrency','countryLang','countryRegion']
+    .forEach(id => { if ($(id)) $(id).textContent = '—'; });
+
+  startCityInfoClock(tz);
+
+  // Fetch wiki + country info in parallel (non-blocking)
+  Promise.all([
+    loadWikiInfo(city),
+    loadCountryInfo(country)
+  ]).catch(() => {});
+}
+
+async function loadWikiInfo(city) {
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 6000);
+    const res  = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(city)}`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(tid);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.extract && $('wikiExtract')) {
+      $('wikiExtract').textContent = data.extract;
+    }
+    if (data.thumbnail?.source && $('wikiImgEl') && $('wikiImg')) {
+      $('wikiImgEl').src        = data.thumbnail.source;
+      $('wikiImgEl').alt        = city;
+      $('wikiImg').style.display = 'block';
+    }
+    if (data.content_urls?.desktop?.page && $('wikiLink')) {
+      $('wikiLink').href = data.content_urls.desktop.page;
+    }
+  } catch(_) {
+    if ($('wikiExtract')) {
+      $('wikiExtract').textContent = 'Wikipedia information is not available for this city at this time.';
+    }
+  }
+}
+
+async function loadCountryInfo(countryCode) {
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 6000);
+    const res  = await fetch(
+      `https://restcountries.com/v3.1/alpha/${encodeURIComponent(countryCode)}`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(tid);
+    if (!res.ok) return;
+    const [data] = await res.json();
+
+    if ($('countryFlag'))     $('countryFlag').textContent     = data.flag || '🌍';
+    if ($('countryName'))     $('countryName').textContent     = data.name?.common || '—';
+
+    const pop = data.population;
+    if ($('countryPop')) {
+      $('countryPop').textContent = pop
+        ? pop >= 1_000_000 ? `${(pop/1_000_000).toFixed(1)}M` : `${(pop/1000).toFixed(0)}K`
+        : '—';
+    }
+
+    if ($('countryCapital'))  $('countryCapital').textContent  = data.capital?.[0] || '—';
+
+    const currencies = Object.values(data.currencies || {});
+    if ($('countryCurrency')) {
+      $('countryCurrency').textContent = currencies.length
+        ? `${currencies[0].name} (${currencies[0].symbol || ''})`
+        : '—';
+    }
+
+    const langs = Object.values(data.languages || {});
+    if ($('countryLang'))   $('countryLang').textContent   = langs.slice(0,2).join(', ') || '—';
+    if ($('countryRegion')) $('countryRegion').textContent = data.subregion || data.region || '—';
+
+  } catch(_) {
+    if ($('countryName')) $('countryName').textContent = countryCode || '—';
+  }
+}
+
+function startCityInfoClock(timezoneOffset) {
+  if (cityClockInterval) clearInterval(cityClockInterval);
+
+  function updateClock() {
+    const now      = new Date();
+    const utcMs    = now.getTime() + now.getTimezoneOffset() * 60000;
+    const local    = new Date(utcMs + timezoneOffset * 1000);
+
+    const h = local.getHours().toString().padStart(2,'0');
+    const m = local.getMinutes().toString().padStart(2,'0');
+    const s = local.getSeconds().toString().padStart(2,'0');
+    if ($('localTimeBig')) $('localTimeBig').textContent = `${h}:${m}:${s}`;
+
+    const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if ($('localTimeDate')) {
+      $('localTimeDate').textContent =
+        `${days[local.getDay()]}, ${local.getDate()} ${months[local.getMonth()]} ${local.getFullYear()}`;
+    }
+
+    const absOff   = Math.abs(timezoneOffset);
+    const offH     = Math.floor(absOff / 3600).toString().padStart(2,'0');
+    const offM     = Math.floor((absOff % 3600) / 60).toString().padStart(2,'0');
+    const offSign  = timezoneOffset >= 0 ? '+' : '-';
+    if ($('localTimeZone')) {
+      $('localTimeZone').textContent = `Local Time · UTC${offSign}${offH}:${offM}`;
+    }
+  }
+
+  updateClock();
+  cityClockInterval = setInterval(updateClock, 1000);
 }
 
 // ══════════════════════════════════════════════════════════════

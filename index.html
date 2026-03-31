@@ -274,7 +274,95 @@
         </div>
       </section>
 
-      <!-- 2. Advanced Details -->
+      <!-- 2. City Information -->
+      <section class="city-info-panel panel-appear" id="cityInfo">
+        <div class="panel-title-row">
+          <h2><i class="fas fa-city"></i> About <span id="cityInfoName">—</span></h2>
+        </div>
+        <div class="city-info-grid">
+
+          <!-- Wikipedia City Summary -->
+          <div class="ci-card ci-wiki" id="wikiCard">
+            <div class="ci-card-header">
+              <i class="fas fa-book-open"></i>
+              <span>City Overview</span>
+            </div>
+            <div id="wikiImg" class="ci-wiki-img" style="display:none">
+              <img id="wikiImgEl" src="" alt="" loading="lazy">
+            </div>
+            <p id="wikiExtract" class="ci-wiki-text">Loading city information…</p>
+            <a id="wikiLink" href="#" target="_blank" rel="noopener" class="ci-read-more">Read more on Wikipedia</a>
+          </div>
+
+          <!-- Country Facts -->
+          <div class="ci-card ci-country" id="countryCard">
+            <div class="ci-card-header">
+              <i class="fas fa-flag"></i>
+              <span>Country Facts</span>
+            </div>
+            <div class="ci-facts-list">
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon" id="countryFlag">🌍</span>
+                <div>
+                  <div class="ci-fact-label">Country</div>
+                  <div class="ci-fact-value" id="countryName">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">👥</span>
+                <div>
+                  <div class="ci-fact-label">Population</div>
+                  <div class="ci-fact-value" id="countryPop">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">🏛️</span>
+                <div>
+                  <div class="ci-fact-label">Capital</div>
+                  <div class="ci-fact-value" id="countryCapital">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">💰</span>
+                <div>
+                  <div class="ci-fact-label">Currency</div>
+                  <div class="ci-fact-value" id="countryCurrency">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">🗣️</span>
+                <div>
+                  <div class="ci-fact-label">Language</div>
+                  <div class="ci-fact-value" id="countryLang">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">🌐</span>
+                <div>
+                  <div class="ci-fact-label">Region</div>
+                  <div class="ci-fact-value" id="countryRegion">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Local Time -->
+          <div class="ci-card ci-time" id="timeCard">
+            <div class="ci-card-header">
+              <i class="fas fa-clock"></i>
+              <span>Local Time</span>
+            </div>
+            <div class="ci-time-display">
+              <div class="ci-time-big" id="localTimeBig">--:--</div>
+              <div class="ci-time-date" id="localTimeDate">—</div>
+              <div class="ci-time-zone" id="localTimeZone">—</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 3. Advanced Details -->
       <section class="adv-panel panel-appear" id="panelAdv">
 
         <!-- Wind Compass -->
