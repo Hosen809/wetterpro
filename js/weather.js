@@ -696,68 +696,6 @@ function renderTempChart(forecastData, timezone) {
 // ══════════════════════════════════════════════════════════════
 // 5-DAY FORECAST
 // ══════════════════════════════════════════════════════════════
-function displayFiveDayForecast(forecastData) {
-  const rows  = $('forecastRows');
-  const panel = $('forecast');
-  if (!forecastData?.list?.length) { panel.style.display = 'none'; return; }
-  panel.style.display = '';
-
-  // Group by UTC ISO date (YYYY-MM-DD) — robust across all timezones
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const dayMap   = {};
-  const dayOrder = [];
-  forecastData.list.forEach(item => {
-    const key = new Date(item.dt * 1000).toISOString().slice(0, 10);
-    if (key === todayISO) return;
-    if (!dayMap[key]) { dayMap[key] = []; dayOrder.push(key); }
-    dayMap[key].push(item);
-  });
-
-  const dayKeys = dayOrder.slice(0, 5);
-  if (!dayKeys.length) { panel.style.display = 'none'; return; }
-
-  // Week-wide range for the temperature bar
-  const allTemps = dayKeys.flatMap(k => dayMap[k].map(i => i.main.temp));
-  const weekMin  = Math.min(...allTemps);
-  const weekMax  = Math.max(...allTemps);
-  const weekSpan = weekMax - weekMin || 1;
-  const tc       = v => currentUnit === 'C' ? Math.round(v) : Math.round(v * 9/5 + 32);
-
-  rows.innerHTML = dayKeys.map(key => {
-    const items    = dayMap[key];
-    const temps    = items.map(i => i.main.temp);
-    const dayMin   = Math.min(...temps);
-    const dayMax   = Math.max(...temps);
-    const maxRain  = Math.round(Math.max(...items.map(i => i.pop || 0)) * 100);
-    const mid      = items.find(i => { const h = new Date(i.dt * 1000).getUTCHours(); return h >= 11 && h <= 14; })
-                     || items[Math.floor(items.length / 2)];
-    const icon     = mid.weather[0].icon;
-    const cond     = mid.weather[0].description;
-    const d        = new Date(key + 'T12:00:00Z');
-    const dayName  = d.toLocaleDateString('en-US', { weekday: 'short',  timeZone: 'UTC' });
-    const dateStr  = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-
-    // Bar: left and right % within the week's temp range
-    const leftPct  = ((dayMin - weekMin) / weekSpan * 100).toFixed(1);
-    const rightPct = (100 - (dayMax - weekMin) / weekSpan * 100).toFixed(1);
-
-    return `<div class="fc-row">
-      <div class="fc-day-name">${dayName}<small>${dateStr}</small></div>
-      <img class="fc-row-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${cond}" loading="lazy">
-      <div class="fc-row-cond">${cond}</div>
-      <div class="fc-rain-prob"><i class="fas fa-droplet"></i>${maxRain}%</div>
-      <div class="fc-temp-range">
-        <span class="fc-low">${tc(dayMin)}°</span>
-        <div class="fc-bar-wrap">
-          <div class="fc-bar-fill" style="left:${leftPct}%;right:${rightPct}%"></div>
-        </div>
-        <span class="fc-high">${tc(dayMax)}°</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ══════════════════════════════════════════════════════════════
 // UNIT TOGGLE (°C / °F)
 // ══════════════════════════════════════════════════════════════
 function switchUnit(unit) {
@@ -771,7 +709,6 @@ function switchUnit(unit) {
   if (forecast) {
     displayHourly(forecast, weather.timezone);
     renderTempChart(forecast, weather.timezone);
-    displayFiveDayForecast(forecast);
   }
 }
 window.switchUnit = switchUnit;
@@ -905,7 +842,6 @@ async function triggerSearch(city) {
     loadCityInfo(weatherData);
     displayHourly(forecastData, weatherData.timezone);
     renderTempChart(forecastData, weatherData.timezone);
-    displayFiveDayForecast(forecastData);
     showContent();
     loadDiscover(weatherData);
 
@@ -987,7 +923,6 @@ function handleGeoLocation() {
         loadCityInfo(weatherData);
         displayHourly(forecastData, weatherData.timezone);
         renderTempChart(forecastData, weatherData.timezone);
-        displayFiveDayForecast(forecastData);
         showContent();
         loadDiscover(weatherData);
 
