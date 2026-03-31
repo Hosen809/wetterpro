@@ -31,6 +31,12 @@ let tempChartInstance  = null;
 let currentWxState     = '';
 let clockInterval      = null;
 let cityClockInterval  = null;
+let discoverMap       = null;
+let discoverMarkers   = [];
+let currentDiscoverCat = 'restaurants';
+let discoverLat       = 0;
+let discoverLon       = 0;
+let discoverPlacesCache = {};
 let sessionSearches    = []; // session-only recent searches — cleared on page refresh
 
 // ── DOM helper ────────────────────────────────────────────────
@@ -370,6 +376,190 @@ function setHumidityGauge(pct) {
   fill.getBoundingClientRect();
   fill.style.transition      = 'stroke-dasharray 0.85s cubic-bezier(0.4,0,0.2,1)';
   fill.style.strokeDasharray = `${visible} 1000`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// AIR QUALITY INDEX  (OpenWeatherMap Air Pollution API)
+// ══════════════════════════════════════════════════════════════
+async function fetchAirQuality(lat, lon) {
+  try {
+    const url = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${CONFIG.OPENWEATHER_API_KEY}`;
+    return await apiFetch(url);
+  } catch(_) { return null; }
+}
+
+function displayAQI(data) {
+  const card = $('aqiCard');
+  if (!card) return;
+  if (!data?.list?.[0]) { card.style.opacity = '0.4'; return; }
+  card.style.opacity = '1';
+
+  const aqi  = data.list[0].main.aqi;
+  const comp = data.list[0].components;
+  const labels = ['', 'Good', 'Fair', 'Moderate', 'Poor', 'Very Poor'];
+  const colors = ['', '#4ade80', '#a3e635', '#facc15', '#f97316', '#ef4444'];
+
+  $('aqiNum').textContent = aqi;
+  $('aqiCat').textContent = labels[aqi] || '—';
+  if ($('aqiNum')) $('aqiNum').style.color = colors[aqi] || '#fff';
+  if ($('aqiCat')) $('aqiCat').style.color = colors[aqi] || '#fff';
+  const markerPct = ((aqi - 1) / 4) * 100;
+  if ($('aqiMarker')) $('aqiMarker').style.left = `${markerPct.toFixed(0)}%`;
+
+  const pm25 = comp.pm2_5 != null ? comp.pm2_5.toFixed(1) : '—';
+  const pm10 = comp.pm10  != null ? comp.pm10.toFixed(1)  : '—';
+  const no2  = comp.no2   != null ? comp.no2.toFixed(1)   : '—';
+  const pollEl = $('aqiPollutants');
+  if (pollEl) {
+    pollEl.innerHTML = `
+      <div class="aqi-poll-row"><span>PM2.5</span><span>${pm25} μg/m³</span></div>
+      <div class="aqi-poll-row"><span>PM10</span><span>${pm10} μg/m³</span></div>
+      <div class="aqi-poll-row"><span>NO₂</span><span>${no2} μg/m³</span></div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 7-DAY FORECAST  (Open-Meteo – free, no key)
+// ══════════════════════════════════════════════════════════════
+async function fetch7DayForecast(lat, lon) {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,windspeed_10m_max&timezone=auto&forecast_days=7`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return res.json();
+  } catch(_) { return null; }
+}
+
+function wmoToIcon(code) {
+  if (code === 0)                                  return '01d';
+  if ([1,2,3].includes(code))                      return '03d';
+  if ([45,48].includes(code))                      return '50d';
+  if ([51,53,55,61,63,65,80,81,82].includes(code)) return '10d';
+  if ([66,67,71,73,75,77,85,86].includes(code))    return '13d';
+  if ([95,96,99].includes(code))                   return '11d';
+  return '03d';
+}
+
+function wmoToDesc(code) {
+  if (code === 0)                      return 'Clear sky';
+  if (code === 1)                      return 'Mainly clear';
+  if (code === 2)                      return 'Partly cloudy';
+  if (code === 3)                      return 'Overcast';
+  if ([45,48].includes(code))          return 'Fog';
+  if ([51,53,55].includes(code))       return 'Drizzle';
+  if ([61,63,65].includes(code))       return 'Rain';
+  if ([80,81,82].includes(code))       return 'Rain showers';
+  if ([71,73,75,77].includes(code))    return 'Snow';
+  if ([85,86].includes(code))          return 'Snow showers';
+  if ([95,96,99].includes(code))       return 'Thunderstorm';
+  return 'Mixed conditions';
+}
+
+function display7DayForecast(data) {
+  const rows  = $('forecast7Rows');
+  const panel = $('forecast7');
+  if (!data?.daily?.time?.length || !rows || !panel) {
+    if (panel) panel.style.display = 'none'; return;
+  }
+  panel.style.display = '';
+
+  const daily    = data.daily;
+  const allMax   = daily.temperature_2m_max;
+  const allMin   = daily.temperature_2m_min;
+  const weekMin  = Math.min(...allMin);
+  const weekMax  = Math.max(...allMax);
+  const weekSpan = weekMax - weekMin || 1;
+  const tc = v => currentUnit === 'C' ? Math.round(v) : Math.round(v * 9/5 + 32);
+
+  rows.innerHTML = daily.time.map((dateStr, i) => {
+    const d        = new Date(dateStr + 'T12:00:00Z');
+    const dayName  = d.toLocaleDateString('en-US', { weekday: 'short',  timeZone: 'UTC' });
+    const dateLabel= d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const code     = daily.weathercode[i];
+    const icon     = wmoToIcon(code);
+    const desc     = wmoToDesc(code);
+    const maxT     = allMax[i];
+    const minT     = allMin[i];
+    const rain     = daily.precipitation_probability_max[i] ?? 0;
+    const leftPct  = ((minT - weekMin) / weekSpan * 100).toFixed(1);
+    const rightPct = (100 - (maxT - weekMin) / weekSpan * 100).toFixed(1);
+
+    return `<div class="fc-row">
+      <div class="fc-day-name">${dayName}<small>${dateLabel}</small></div>
+      <img class="fc-row-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${desc}" loading="lazy">
+      <div class="fc-row-cond">${desc}</div>
+      <div class="fc-rain-prob"><i class="fas fa-droplet"></i>${rain}%</div>
+      <div class="fc-temp-range">
+        <span class="fc-low">${tc(minT)}°</span>
+        <div class="fc-bar-wrap"><div class="fc-bar-fill" style="left:${leftPct}%;right:${rightPct}%"></div></div>
+        <span class="fc-high">${tc(maxT)}°</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// OUTDOOR ACTIVITY SCORE
+// ══════════════════════════════════════════════════════════════
+function calculateOutdoorScore(weatherData, uvIndex) {
+  const { main, wind, clouds, weather } = weatherData;
+  const temp      = main.temp;
+  const humidity  = main.humidity;
+  const windKmh   = wind.speed * 3.6;
+  const condCode  = weather[0]?.icon?.slice(0, 2);
+
+  let score = 100;
+
+  // Temperature (ideal 18–25 °C)
+  if      (temp < 0  || temp > 40) score -= 40;
+  else if (temp < 5  || temp > 35) score -= 25;
+  else if (temp < 10 || temp > 30) score -= 15;
+  else if (temp < 18 || temp > 28) score -= 5;
+
+  // Weather condition
+  if (['09','10','11'].includes(condCode)) score -= 35;
+  else if (condCode === '13')              score -= 30;
+  else if (condCode === '50')              score -= 15;
+
+  // Humidity (ideal 40–60 %)
+  if      (humidity > 85 || humidity < 20) score -= 15;
+  else if (humidity > 70 || humidity < 30) score -= 8;
+
+  // Wind
+  if      (windKmh > 50) score -= 25;
+  else if (windKmh > 30) score -= 15;
+  else if (windKmh > 20) score -= 8;
+
+  // UV Index
+  if (uvIndex != null) {
+    if      (uvIndex > 10) score -= 20;
+    else if (uvIndex > 7)  score -= 10;
+    else if (uvIndex > 5)  score -= 5;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function displayOutdoorScore(score) {
+  const numEl   = $('outdoorScore');
+  const emojiEl = $('outdoorEmoji');
+  const labelEl = $('outdoorLabel');
+  const barEl   = $('outdoorBarInner');
+  if (!numEl) return;
+
+  numEl.textContent = `${score}/100`;
+  if (barEl) barEl.style.width = `${score}%`;
+
+  let emoji, label, color;
+  if      (score >= 80) { emoji = '🏃'; label = 'Perfect for outdoor activities!'; color = 'linear-gradient(to right,#4ade80,#22c55e)'; }
+  else if (score >= 60) { emoji = '🚶'; label = 'Good conditions outside';          color = 'linear-gradient(to right,#86efac,#4ade80)'; }
+  else if (score >= 40) { emoji = '🌤️'; label = 'Moderate – dress appropriately';  color = 'linear-gradient(to right,#fbbf24,#f59e0b)'; }
+  else if (score >= 20) { emoji = '🌧️'; label = 'Not ideal – consider indoors';    color = 'linear-gradient(to right,#fb923c,#ef4444)'; }
+  else                  { emoji = '⛈️'; label = 'Stay indoors!';                    color = 'linear-gradient(to right,#ef4444,#dc2626)'; }
+
+  if (emojiEl) emojiEl.textContent = emoji;
+  if (labelEl) labelEl.textContent = label;
+  if (barEl)   barEl.style.background = color;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -717,10 +907,16 @@ async function triggerSearch(city) {
     renderTempChart(forecastData, weatherData.timezone);
     displayFiveDayForecast(forecastData);
     showContent();
+    loadDiscover(weatherData);
 
-    // UV + advanced details fetched async (non-blocking)
+    // UV + advanced details + AQI + outdoor score (non-blocking)
     const coord = weatherData.coord;
-    fetchUV(coord.lat, coord.lon).then(uv => displayAdvanced(weatherData, uv));
+    fetchUV(coord.lat, coord.lon).then(uv => {
+      displayAdvanced(weatherData, uv);
+      displayOutdoorScore(calculateOutdoorScore(weatherData, uv));
+    });
+    fetchAirQuality(coord.lat, coord.lon).then(aqiData => displayAQI(aqiData));
+    fetch7DayForecast(coord.lat, coord.lon).then(d7 => display7DayForecast(d7));
 
     // News section (non-blocking)
     $('newsCity').textContent     = weatherData.name;
@@ -748,7 +944,7 @@ async function triggerSearch(city) {
 window.triggerSearch = triggerSearch;
 
 function syncInputs(city) {
-  ['cityInput','hdrCityInput','mobCityInput'].forEach(id => {
+  ['cityInput','mobCityInput'].forEach(id => {
     const el = $(id); if (el) el.value = city;
   });
 }
@@ -793,9 +989,15 @@ function handleGeoLocation() {
         renderTempChart(forecastData, weatherData.timezone);
         displayFiveDayForecast(forecastData);
         showContent();
+        loadDiscover(weatherData);
 
         fetchUV(weatherData.coord.lat, weatherData.coord.lon)
-          .then(uv => displayAdvanced(weatherData, uv));
+          .then(uv => {
+            displayAdvanced(weatherData, uv);
+            displayOutdoorScore(calculateOutdoorScore(weatherData, uv));
+          });
+        fetchAirQuality(weatherData.coord.lat, weatherData.coord.lon).then(aqiData => displayAQI(aqiData));
+        fetch7DayForecast(weatherData.coord.lat, weatherData.coord.lon).then(d7 => display7DayForecast(d7));
 
         // News section
         $('newsCity').textContent     = weatherData.name;
@@ -1314,12 +1516,236 @@ function startCityInfoClock(timezoneOffset) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// DISCOVER CITY  (OpenStreetMap Overpass API – free, no key)
+// ══════════════════════════════════════════════════════════════
+function calcDistance(lat1, lon1, lat2, lon2) {
+  const R    = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a    = Math.sin(dLat/2)**2 +
+               Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+               Math.sin(dLon/2)**2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1000);
+}
+
+async function fetchNearbyPlaces(lat, lon, category) {
+  const radius = 2000;
+  const tagQueries = {
+    restaurants: 'node["amenity"~"restaurant|cafe|fast_food"]',
+    sports:      'node["leisure"~"sports_centre|stadium|pitch"]',
+    fitness:     'node["leisure"~"fitness_centre|gym|swimming_pool"]',
+    health:      'node["amenity"~"hospital|pharmacy|clinic|doctors"]',
+    shopping:    'node["shop"~"mall|supermarket|clothes|bakery"]',
+    hotels:      'node["tourism"~"hotel|hostel|guest_house"]',
+    attractions: 'node["tourism"~"attraction|museum|gallery"]',
+    cafes:       'node["amenity"~"cafe|bar|pub"]',
+    parks:       'node["leisure"~"park|garden"]'
+  };
+
+  const query = `[out:json][timeout:10];
+${tagQueries[category] || tagQueries.restaurants}(around:${radius},${lat},${lon});
+out body 8;`;
+
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 12000);
+    const res  = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body:   'data=' + encodeURIComponent(query),
+      signal: ctrl.signal
+    });
+    clearTimeout(tid);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.elements
+      .filter(el => el.tags?.name)
+      .slice(0, 8)
+      .map(el => ({
+        name:     el.tags.name,
+        type:     el.tags.amenity || el.tags.leisure || el.tags.tourism || el.tags.shop || '',
+        address:  el.tags['addr:street']
+                    ? `${el.tags['addr:street']} ${el.tags['addr:housenumber'] || ''}`.trim()
+                    : '',
+        phone:    el.tags.phone || el.tags['contact:phone'] || '',
+        website:  el.tags.website || el.tags['contact:website'] || '',
+        hours:    el.tags.opening_hours || '',
+        lat:      el.lat,
+        lon:      el.lon,
+        distance: calcDistance(lat, lon, el.lat, el.lon)
+      }))
+      .sort((a, b) => a.distance - b.distance);
+  } catch(_) { return []; }
+}
+
+async function loadDiscover(weatherData) {
+  const city = weatherData.name;
+  const lat  = weatherData.coord.lat;
+  const lon  = weatherData.coord.lon;
+
+  discoverLat          = lat;
+  discoverLon          = lon;
+  discoverPlacesCache  = {};
+
+  if ($('discoverCity')) $('discoverCity').textContent = city;
+
+  // Reset tab to restaurants
+  document.querySelectorAll('.disc-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === 0);
+  });
+  currentDiscoverCat = 'restaurants';
+
+  initDiscoverMap(lat, lon, city);
+  showWeatherTip(weatherData);
+
+  // Pre-load default tab
+  $('placesLoading').style.display = 'block';
+  $('placesGrid').innerHTML = '';
+  const places = await fetchNearbyPlaces(lat, lon, 'restaurants');
+  discoverPlacesCache['restaurants'] = places;
+  $('placesLoading').style.display = 'none';
+  renderPlaces(places);
+}
+
+function initDiscoverMap(lat, lon, city) {
+  if (discoverMap) {
+    discoverMap.remove();
+    discoverMap    = null;
+    discoverMarkers = [];
+  }
+  try {
+    discoverMap = L.map('discoverMap', { zoomControl: true }).setView([lat, lon], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(discoverMap);
+    L.marker([lat, lon])
+      .addTo(discoverMap)
+      .bindPopup(`<b>${city}</b><br>City Center`)
+      .openPopup();
+  } catch(e) { console.warn('Map init failed:', e.message); }
+}
+
+function showWeatherTip(weather) {
+  const banner = $('weatherTipBanner');
+  if (!banner) return;
+
+  const temp = weather.main.temp;
+  const code = weather.weather[0].icon.slice(0, 2);
+  const wind = weather.wind.speed * 3.6;
+
+  let tip;
+  if (['01','02'].includes(code) && temp > 15) {
+    tip = '☀️ Beautiful weather! Perfect for outdoor dining and exploring the city.';
+  } else if (['09','10'].includes(code)) {
+    tip = '🌧️ Rainy day — great time for indoor activities, museums, cafes and restaurants!';
+  } else if (code === '13') {
+    tip = '❄️ Snowy conditions — warm up inside! Check out nearby cafes and indoor attractions.';
+  } else if (code === '11') {
+    tip = '⚡ Thunderstorm — stay safe indoors! Explore local restaurants and shopping.';
+  } else if (temp < 5) {
+    tip = '🧥 Cold weather — perfect for indoor sports, gyms and warm cafes nearby!';
+  } else if (temp > 25) {
+    tip = '🌡️ Hot day — look for restaurants with AC or explore parks in the evening!';
+  } else if (wind > 30) {
+    tip = '💨 Windy conditions — consider indoor venues today.';
+  } else {
+    tip = '🌤️ Good weather for exploring! Check out what\'s nearby.';
+  }
+
+  banner.textContent = tip;
+  banner.classList.add('show');
+}
+
+window.switchDiscoverTab = async function(category, btn) {
+  currentDiscoverCat = category;
+  document.querySelectorAll('.disc-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (!discoverLat) return;
+
+  if (discoverPlacesCache[category]) {
+    renderPlaces(discoverPlacesCache[category]);
+    return;
+  }
+
+  $('placesLoading').style.display = 'block';
+  $('placesGrid').innerHTML = '';
+
+  const places = await fetchNearbyPlaces(discoverLat, discoverLon, category);
+  discoverPlacesCache[category] = places;
+
+  $('placesLoading').style.display = 'none';
+  renderPlaces(places);
+};
+
+function renderPlaces(places) {
+  const grid = $('placesGrid');
+  if (!grid) return;
+
+  // Clear old map markers
+  discoverMarkers.forEach(m => { try { discoverMap?.removeLayer(m); } catch(_){} });
+  discoverMarkers = [];
+
+  if (!places.length) {
+    grid.innerHTML = '<div class="places-empty"><i class="fas fa-search"></i> No places found nearby. Try a larger city!</div>';
+    return;
+  }
+
+  grid.innerHTML = places.map(p => `
+    <div class="place-card" onclick="focusPlace(${p.lat},${p.lon},'${escAttr(p.name)}')">
+      <div class="place-name">${escHtml(p.name)}</div>
+      <div class="place-type">${escHtml(p.type)}</div>
+      <div class="place-info">
+        ${p.address ? `<div><i class="fas fa-location-dot"></i>${escHtml(p.address)}</div>` : ''}
+        ${p.hours   ? `<div><i class="fas fa-clock"></i>${escHtml(p.hours.slice(0,35))}</div>` : ''}
+        ${p.phone   ? `<div><i class="fas fa-phone"></i>${escHtml(p.phone)}</div>` : ''}
+        ${p.website ? `<div><i class="fas fa-globe"></i><a href="${escAttr(p.website)}" target="_blank" rel="noopener" style="color:#38bdf8">Website</a></div>` : ''}
+      </div>
+      <span class="place-dist">${p.distance < 1000 ? p.distance + 'm' : (p.distance/1000).toFixed(1) + 'km'} away</span>
+    </div>`).join('');
+
+  // Add markers to map
+  if (discoverMap) {
+    places.forEach(p => {
+      if (!p.lat || !p.lon) return;
+      try {
+        const m = L.marker([p.lat, p.lon])
+          .addTo(discoverMap)
+          .bindPopup(`<b>${p.name}</b>${p.address ? '<br>' + p.address : ''}`);
+        discoverMarkers.push(m);
+      } catch(_) {}
+    });
+
+    const validPlaces = places.filter(p => p.lat && p.lon);
+    if (validPlaces.length > 0) {
+      try {
+        const bounds = L.latLngBounds(validPlaces.map(p => [p.lat, p.lon]));
+        if (bounds.isValid()) discoverMap.fitBounds(bounds, { padding: [30, 30] });
+      } catch(_) {}
+    }
+  }
+}
+
+window.focusPlace = function(lat, lon, name) {
+  if (!discoverMap) return;
+  discoverMap.setView([lat, lon], 17);
+  discoverMarkers.forEach(m => {
+    try {
+      if (Math.abs(m.getLatLng().lat - lat) < 0.0001 &&
+          Math.abs(m.getLatLng().lng - lon) < 0.0001) {
+        m.openPopup();
+      }
+    } catch(_) {}
+  });
+  const mapEl = $('discoverMap');
+  if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+// ══════════════════════════════════════════════════════════════
 // INITIALISE EVERYTHING
 // ══════════════════════════════════════════════════════════════
 function init() {
   // Search forms
   wireSearchForm('heroSearchForm', 'cityInput');
-  wireSearchForm('hdrSearchForm',  'hdrCityInput');
   wireSearchForm('mobSearchForm',  'mobCityInput');
 
   // Geo button

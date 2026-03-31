@@ -8,8 +8,10 @@
   <link rel="stylesheet" href="css/styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
+<div class="ambient-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div></div>
 
 <!-- ══════════════════════════════════════════════
      HEADER
@@ -24,14 +26,8 @@
       <a href="#hourly" class="hn-link">Hourly</a>
       <a href="#forecast" class="hn-link">5-Day</a>
       <a href="#cities" class="hn-link">Cities</a>
-      <a href="#subscribe" class="hn-link">Subscribe</a>
       <a href="#about" class="hn-link">About</a>
     </nav>
-    <form class="hdr-search" id="hdrSearchForm" autocomplete="off">
-      <i class="fas fa-search"></i>
-      <input type="text" id="hdrCityInput" placeholder="Search city…">
-      <button type="submit">Go</button>
-    </form>
     <button class="hdr-burger" id="hdrBurger" aria-label="Menu">
       <i class="fas fa-bars"></i>
     </button>
@@ -39,12 +35,7 @@
   <div class="hdr-mobile-nav" id="hdrMobileNav">
     <a href="#forecast">5-Day Forecast</a>
     <a href="#cities">German Cities</a>
-    <a href="#subscribe">Free Subscribe</a>
     <a href="#about">About</a>
-    <form class="mob-search-form" id="mobSearchForm" autocomplete="off">
-      <input type="text" id="mobCityInput" placeholder="Search city…">
-      <button type="submit"><i class="fas fa-search"></i></button>
-    </form>
   </div>
 </header>
 
@@ -274,95 +265,7 @@
         </div>
       </section>
 
-      <!-- 2. City Information -->
-      <section class="city-info-panel panel-appear" id="cityInfo">
-        <div class="panel-title-row">
-          <h2><i class="fas fa-city"></i> About <span id="cityInfoName">—</span></h2>
-        </div>
-        <div class="city-info-grid">
-
-          <!-- Wikipedia City Summary -->
-          <div class="ci-card ci-wiki" id="wikiCard">
-            <div class="ci-card-header">
-              <i class="fas fa-book-open"></i>
-              <span>City Overview</span>
-            </div>
-            <div id="wikiImg" class="ci-wiki-img" style="display:none">
-              <img id="wikiImgEl" src="" alt="" loading="lazy">
-            </div>
-            <p id="wikiExtract" class="ci-wiki-text">Loading city information…</p>
-            <a id="wikiLink" href="#" target="_blank" rel="noopener" class="ci-read-more">Read more on Wikipedia</a>
-          </div>
-
-          <!-- Country Facts -->
-          <div class="ci-card ci-country" id="countryCard">
-            <div class="ci-card-header">
-              <i class="fas fa-flag"></i>
-              <span>Country Facts</span>
-            </div>
-            <div class="ci-facts-list">
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon" id="countryFlag">🌍</span>
-                <div>
-                  <div class="ci-fact-label">Country</div>
-                  <div class="ci-fact-value" id="countryName">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">👥</span>
-                <div>
-                  <div class="ci-fact-label">Population</div>
-                  <div class="ci-fact-value" id="countryPop">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">🏛️</span>
-                <div>
-                  <div class="ci-fact-label">Capital</div>
-                  <div class="ci-fact-value" id="countryCapital">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">💰</span>
-                <div>
-                  <div class="ci-fact-label">Currency</div>
-                  <div class="ci-fact-value" id="countryCurrency">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">🗣️</span>
-                <div>
-                  <div class="ci-fact-label">Language</div>
-                  <div class="ci-fact-value" id="countryLang">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">🌐</span>
-                <div>
-                  <div class="ci-fact-label">Region</div>
-                  <div class="ci-fact-value" id="countryRegion">—</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Local Time -->
-          <div class="ci-card ci-time" id="timeCard">
-            <div class="ci-card-header">
-              <i class="fas fa-clock"></i>
-              <span>Local Time</span>
-            </div>
-            <div class="ci-time-display">
-              <div class="ci-time-big" id="localTimeBig">--:--</div>
-              <div class="ci-time-date" id="localTimeDate">—</div>
-              <div class="ci-time-zone" id="localTimeZone">—</div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- 3. Advanced Details -->
+      <!-- 2. Advanced Details + AQI + Outdoor Score -->
       <section class="adv-panel panel-appear" id="panelAdv">
 
         <!-- Wind Compass -->
@@ -483,6 +386,37 @@
           <p class="adv-sub" id="cloudDesc">—</p>
         </div>
 
+        <!-- Air Quality Index -->
+        <div class="adv-card aqi-card" id="aqiCard">
+          <div class="adv-head"><i class="fas fa-leaf"></i> Air Quality</div>
+          <div class="aqi-display">
+            <span class="aqi-num" id="aqiNum">—</span>
+            <span class="aqi-cat" id="aqiCat">—</span>
+          </div>
+          <div class="aqi-bar-wrap">
+            <div class="aqi-gradient-bar">
+              <div class="aqi-marker" id="aqiMarker" style="left:0%"></div>
+            </div>
+            <div class="aqi-scale-labels">
+              <span>Good</span><span>Fair</span><span>Mod</span><span>Poor</span><span>V.Poor</span>
+            </div>
+          </div>
+          <div class="aqi-pollutants" id="aqiPollutants"></div>
+        </div>
+
+        <!-- Outdoor Activity Score -->
+        <div class="adv-card" id="outdoorCard">
+          <div class="adv-head"><i class="fas fa-person-running"></i> Outdoor Score</div>
+          <div class="outdoor-score-wrap">
+            <span class="outdoor-emoji" id="outdoorEmoji">—</span>
+            <span class="outdoor-num" id="outdoorScore">—</span>
+          </div>
+          <p class="adv-sub" id="outdoorLabel">—</p>
+          <div class="outdoor-bar-outer">
+            <div class="outdoor-bar-inner" id="outdoorBarInner" style="width:0%"></div>
+          </div>
+        </div>
+
       </section>
 
       <!-- 3. Hourly Forecast -->
@@ -513,7 +447,135 @@
         <div class="forecast-rows" id="forecastRows"></div>
       </section>
 
-      <!-- 6. Local News -->
+      <!-- 6. 7-Day Extended Forecast -->
+      <section class="forecast-panel panel-appear" id="forecast7" style="display:none">
+        <h2><i class="fas fa-calendar-days"></i> 7-Day Extended Forecast</h2>
+        <div class="forecast-rows" id="forecast7Rows"></div>
+      </section>
+
+      <!-- 7. City Information -->
+      <section class="city-info-panel panel-appear" id="cityInfo">
+        <div class="panel-title-row">
+          <h2><i class="fas fa-city"></i> About <span id="cityInfoName">—</span></h2>
+        </div>
+        <div class="city-info-grid">
+
+          <!-- Wikipedia City Summary -->
+          <div class="ci-card ci-wiki" id="wikiCard">
+            <div class="ci-card-header">
+              <i class="fas fa-book-open"></i>
+              <span>City Overview</span>
+            </div>
+            <div id="wikiImg" class="ci-wiki-img" style="display:none">
+              <img id="wikiImgEl" src="" alt="" loading="lazy">
+            </div>
+            <p id="wikiExtract" class="ci-wiki-text">Loading city information…</p>
+            <a id="wikiLink" href="#" target="_blank" rel="noopener" class="ci-read-more">Read more on Wikipedia</a>
+          </div>
+
+          <!-- Country Facts -->
+          <div class="ci-card ci-country" id="countryCard">
+            <div class="ci-card-header">
+              <i class="fas fa-flag"></i>
+              <span>Country Facts</span>
+            </div>
+            <div class="ci-facts-list">
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon" id="countryFlag">🌍</span>
+                <div>
+                  <div class="ci-fact-label">Country</div>
+                  <div class="ci-fact-value" id="countryName">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">👥</span>
+                <div>
+                  <div class="ci-fact-label">Population</div>
+                  <div class="ci-fact-value" id="countryPop">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">🏛️</span>
+                <div>
+                  <div class="ci-fact-label">Capital</div>
+                  <div class="ci-fact-value" id="countryCapital">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">💰</span>
+                <div>
+                  <div class="ci-fact-label">Currency</div>
+                  <div class="ci-fact-value" id="countryCurrency">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">🗣️</span>
+                <div>
+                  <div class="ci-fact-label">Language</div>
+                  <div class="ci-fact-value" id="countryLang">—</div>
+                </div>
+              </div>
+              <div class="ci-fact-row">
+                <span class="ci-fact-icon">🌐</span>
+                <div>
+                  <div class="ci-fact-label">Region</div>
+                  <div class="ci-fact-value" id="countryRegion">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Local Time -->
+          <div class="ci-card ci-time" id="timeCard">
+            <div class="ci-card-header">
+              <i class="fas fa-clock"></i>
+              <span>Local Time</span>
+            </div>
+            <div class="ci-time-display">
+              <div class="ci-time-big" id="localTimeBig">--:--</div>
+              <div class="ci-time-date" id="localTimeDate">—</div>
+              <div class="ci-time-zone" id="localTimeZone">—</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 8. Discover City -->
+      <section class="discover-panel panel-appear" id="discover">
+        <div class="panel-title-row">
+          <h2><i class="fas fa-compass"></i> Discover <span id="discoverCity">—</span></h2>
+        </div>
+
+        <!-- Category tabs -->
+        <div class="discover-tabs" id="discoverTabs">
+          <button class="disc-tab active" onclick="switchDiscoverTab('restaurants',this)">🍽️ Restaurants</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('sports',this)">⚽ Sports</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('fitness',this)">🏋️ Fitness</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('health',this)">🏥 Health</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('shopping',this)">🛍️ Shopping</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('hotels',this)">🏨 Hotels</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('attractions',this)">🎭 Culture</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('cafes',this)">☕ Cafes</button>
+          <button class="disc-tab" onclick="switchDiscoverTab('parks',this)">🌳 Parks</button>
+        </div>
+
+        <!-- Weather tip banner -->
+        <div class="weather-tip-banner" id="weatherTipBanner"></div>
+
+        <!-- Places grid -->
+        <div class="places-loading" id="placesLoading" style="display:none">
+          <div class="skel" style="height:120px;border-radius:12px;margin-bottom:10px"></div>
+          <div class="skel" style="height:120px;border-radius:12px;margin-bottom:10px"></div>
+          <div class="skel" style="height:120px;border-radius:12px"></div>
+        </div>
+        <div class="places-grid" id="placesGrid"></div>
+
+        <!-- Map -->
+        <div id="discoverMap" style="height:300px;border-radius:16px;overflow:hidden;margin-top:16px"></div>
+      </section>
+
+      <!-- 9. Local News -->
       <section class="news-panel panel-appear" id="news">
         <div class="panel-title-row">
           <h2><i class="fas fa-newspaper"></i> Local News &nbsp;&middot;&nbsp; <span id="newsCity">—</span></h2>
@@ -544,7 +606,7 @@
 <!-- ══════════════════════════════════════════════
      SUBSCRIBE SECTION
 ══════════════════════════════════════════════ -->
-<section class="sub-section" id="subscribe">
+<section class="sub-section" id="subscribe" style="display:none">
   <div class="sub-inner">
     <div class="sub-left">
       <div class="sub-badge"><i class="fas fa-gift"></i> 100% FREE · Always</div>
@@ -591,7 +653,7 @@
 ══════════════════════════════════════════════ -->
 <section class="about-section" id="about">
   <div class="about-inner">
-    <h2 class="about-title anim-fade-up">Why WeatherPro beats BBC Weather</h2>
+    <h2 class="about-title anim-fade-up">Why Choose WeatherPro</h2>
     <div class="about-grid anim-fade-up">
       <div class="ab-card">
         <div class="ab-icon"><i class="fas fa-bolt-lightning"></i></div>
@@ -631,11 +693,10 @@
         <a href="#forecast">5-Day</a>
         <a href="#hourly">Hourly</a>
         <a href="#cities">Cities</a>
-        <a href="#subscribe">Subscribe</a>
         <a href="#about">About</a>
       </nav>
     </div>
-    <div class="ft-sub-row">
+    <div class="ft-sub-row" style="display:none">
       <p>Get daily forecasts free — no spam, no ads.</p>
       <form class="ft-sub-form" id="ftSubForm" autocomplete="off">
         <input type="email" id="ftSubEmail" placeholder="your@email.com" required>
@@ -650,6 +711,7 @@
 </footer>
 
 <!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="js/config.js"></script>
