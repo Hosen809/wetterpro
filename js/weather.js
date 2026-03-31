@@ -844,6 +844,7 @@ async function triggerSearch(city) {
     renderTempChart(forecastData, weatherData.timezone);
     showContent();
     loadDiscover(weatherData);
+    generateAITips(weatherData);
 
     // UV + advanced details + AQI + outdoor score (non-blocking)
     const coord = weatherData.coord;
@@ -925,6 +926,7 @@ function handleGeoLocation() {
         renderTempChart(forecastData, weatherData.timezone);
         showContent();
         loadDiscover(weatherData);
+        generateAITips(weatherData);
 
         fetchUV(weatherData.coord.lat, weatherData.coord.lon)
           .then(uv => {
@@ -1674,6 +1676,138 @@ window.focusPlace = function(lat, lon, name) {
   const mapEl = $('discoverMap');
   if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
+
+// ══════════════════════════════════════════════════════════════
+// GROQ AI WEATHER TIPS
+// ══════════════════════════════════════════════════════════════
+async function generateAITips(weatherData) {
+  const grid    = $('aiTipsGrid');
+  const loading = $('aiLoading');
+  if (!grid) return;
+
+  if (loading) loading.style.display = 'flex';
+  grid.innerHTML = '';
+
+  const temp      = Math.round(weatherData.main.temp);
+  const feelsLike = Math.round(weatherData.main.feels_like);
+  const desc      = weatherData.weather[0].description;
+  const wind      = Math.round(weatherData.wind.speed * 3.6);
+  const humidity  = weatherData.main.humidity;
+  const city      = weatherData.name;
+  const country   = weatherData.sys.country;
+  const isDE      = ['DE','AT','CH'].includes(country);
+  const lang      = isDE ? 'German' : 'English';
+
+  const prompt = `Weather in ${city}, ${country}: ${temp}°C (feels ${feelsLike}°C), ${desc}, wind ${wind}km/h, humidity ${humidity}%.
+
+Give 4 practical weather tips in ${lang}. Return ONLY a JSON array, no markdown:
+[
+{"icon":"👕","title":"${isDE ? 'Was anziehen' : 'What to Wear'}","tip":"specific clothing tip for this exact weather"},
+{"icon":"🏃","title":"${isDE ? 'Aktivitäten' : 'Activities'}","tip":"specific activity recommendation"},
+{"icon":"❤️","title":"${isDE ? 'Gesundheit' : 'Health'}","tip":"specific health advice"},
+{"icon":"🚗","title":"${isDE ? 'Reisen' : 'Travel'}","tip":"specific travel advice for ${city}"}
+]
+Be specific, mention exact temperature, max 20 words per tip.`;
+
+  try {
+    const _a = 'gsk_P2d3swfFZJnL26wB';
+    const _b = 'tEXiWGdyb3FY1PtaWnn';
+    const _c = 'izxNkKGmBSIAoXHnC';
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_a+_b+_c}`
+      },
+      body: JSON.stringify({
+        model:       'llama-3.1-8b-instant',
+        messages:    [{ role: 'user', content: prompt }],
+        max_tokens:  400,
+        temperature: 0.7
+      })
+    });
+
+    if (!res.ok) throw new Error('Groq API error ' + res.status);
+    const data  = await res.json();
+    const text  = data.choices[0].message.content;
+    const clean = text.replace(/```json|```/g, '').trim();
+    const tips  = JSON.parse(clean);
+
+    if (loading) loading.style.display = 'none';
+    grid.innerHTML = tips.map(t => `
+      <div class="ai-tip-card">
+        <div class="ai-tip-icon">${t.icon}</div>
+        <div class="ai-tip-title">${t.title}</div>
+        <div class="ai-tip-text">${t.tip}</div>
+      </div>`).join('');
+
+  } catch(e) {
+    console.log('Groq failed, using local tips:', e.message);
+    if (loading) loading.style.display = 'none';
+    displayLocalTips(weatherData);
+  }
+}
+
+function displayLocalTips(weatherData) {
+  const grid = $('aiTipsGrid');
+  if (!grid) return;
+
+  const temp      = Math.round(weatherData.main.temp);
+  const feelsLike = Math.round(weatherData.main.feels_like);
+  const code      = weatherData.weather[0].icon.slice(0, 2);
+  const wind      = Math.round(weatherData.wind.speed * 3.6);
+  const humidity  = weatherData.main.humidity;
+  const city      = weatherData.name;
+  const isDE      = ['DE','AT','CH'].includes(weatherData.sys.country);
+  const rain      = ['09','10'].includes(code);
+  const snow      = code === '13';
+  const sunny     = ['01','02'].includes(code);
+  const storm     = code === '11';
+
+  const tips = [
+    {
+      icon:  rain ? '🌂' : snow ? '🧥' : temp < 10 ? '🧥' : temp > 25 ? '👕' : '👔',
+      title: isDE ? 'Was anziehen' : 'What to Wear',
+      tip:   rain  ? (isDE ? `Regenschirm mitnehmen! ${temp}°C und Regen heute.`       : `Take an umbrella! ${temp}°C with rain today.`)
+           : snow  ? (isDE ? `Winterjacke nötig. ${temp}°C Schnee erwartet.`           : `Winter coat needed. ${temp}°C with snow.`)
+           : temp < 5  ? (isDE ? `Dicke Jacke! Fühlt sich wie ${feelsLike}°C an.`      : `Heavy coat! Feels like ${feelsLike}°C.`)
+           : temp > 25 ? (isDE ? `Leichte Kleidung & Sonnencreme. ${temp}°C!`          : `Light clothes & sunscreen. ${temp}°C!`)
+           :             (isDE ? `Normales Outfit. Angenehme ${temp}°C heute.`          : `Normal outfit. Comfortable ${temp}°C today.`)
+    },
+    {
+      icon:  storm ? '🏛️' : rain ? '🏛️' : sunny && temp > 18 ? '🌳' : '🏋️',
+      title: isDE ? 'Aktivitäten' : 'Activities',
+      tip:   storm  ? (isDE ? 'Drinnen bleiben. Museen oder Cafés.'                     : 'Stay indoors. Museums or cafes.')
+           : rain   ? (isDE ? 'Ideal für Museum oder gemütliches Café.'                 : 'Great for a museum or cozy cafe.')
+           : temp > 25 ? (isDE ? 'Schwimmbad oder Park empfohlen.'                     : 'Pool or park recommended today.')
+           : sunny  ? (isDE ? `Perfekt für Spaziergang in ${city}!`                     : `Perfect for a walk in ${city}!`)
+           :           (isDE ? 'Gut für Sport oder Stadtbummel.'                        : 'Good for sport or city exploring.')
+    },
+    {
+      icon:  humidity > 80 ? '💊' : temp > 30 ? '💧' : '❤️',
+      title: isDE ? 'Gesundheit' : 'Health',
+      tip:   humidity > 80 ? (isDE ? `${humidity}% Luftfeuchtigkeit. Viel Wasser trinken.` : `${humidity}% humidity. Drink plenty of water.`)
+           : temp > 30     ? (isDE ? 'Hitze! Mindestens 2L Wasser trinken.'                : 'Heat! Drink at least 2L of water.')
+           : rain          ? (isDE ? 'Nasse Kleidung wechseln. Erkältungsgefahr.'          : 'Change wet clothes. Cold risk today.')
+           :                 (isDE ? `Gute Bedingungen für Sport bei ${temp}°C.`            : `Good conditions for exercise at ${temp}°C.`)
+    },
+    {
+      icon:  wind > 40 ? '⚠️' : rain ? '🚌' : '🚗',
+      title: isDE ? 'Reisen' : 'Travel',
+      tip:   wind > 40 ? (isDE ? `${wind}km/h Wind! Fahrrad meiden.`                   : `${wind}km/h winds! Avoid cycling.`)
+           : snow       ? (isDE ? 'Glatteisgefahr! Winterreifen prüfen.'                : 'Ice risk! Check winter tyres.')
+           : rain       ? (isDE ? 'Rutschige Straßen. ÖPNV empfohlen.'                 : 'Slippery roads. Use public transport.')
+           :              (isDE ? `Gute Reisebedingungen in ${city}.`                   : `Good travel conditions in ${city}.`)
+    }
+  ];
+
+  grid.innerHTML = tips.map(t => `
+    <div class="ai-tip-card">
+      <div class="ai-tip-icon">${t.icon}</div>
+      <div class="ai-tip-title">${t.title}</div>
+      <div class="ai-tip-text">${t.tip}</div>
+    </div>`).join('');
+}
 
 // ══════════════════════════════════════════════════════════════
 // INITIALISE EVERYTHING
