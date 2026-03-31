@@ -6,5 +6,5 @@ const CONFIG = {
   ADMIN_USERNAME: 'razibkhan809',
   ADMIN_PASSWORD: 'Razib@26101961',
   // Register free at https://gnews.io — 100 requests/day, CORS-friendly
-  NEWS_API_KEY:   'YOUR_GNEWS_API_KEY'
+  NEWS_API_KEY:   '7629f578f0216062993d2c906d06180c'
 };
