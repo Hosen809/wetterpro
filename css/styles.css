@@ -1682,3 +1682,126 @@ img{display:block;max-width:100%}
 .places-empty{grid-column:span 2;text-align:center;padding:40px 20px;color:var(--text-dim)}
 .places-empty i{font-size:2.5rem;color:rgba(14,165,233,.3);display:block;margin-bottom:12px}
 .places-empty p{font-size:.9rem;line-height:1.6}
+
+/* ══════════════════════════════════════════════════════════════
+   TAB SYSTEM
+══════════════════════════════════════════════════════════════ */
+.wx-tab-bar {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  padding: 5px;
+  margin: 16px 0 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.wx-tab-bar::-webkit-scrollbar { display: none; }
+.wxt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255,255,255,.45);
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.wxt i { font-size: .95rem; }
+.wxt:hover { color: rgba(255,255,255,.75); background: rgba(255,255,255,.04); }
+.wxt.active {
+  background: linear-gradient(135deg,rgba(14,165,233,.2),rgba(124,58,237,.12));
+  color: #fff;
+  border-color: rgba(14,165,233,.25);
+  box-shadow: 0 3px 10px rgba(14,165,233,.12);
+}
+.wxt-panel { display: none; }
+.wxt-panel.active { display: block; animation: tabIn .3s ease; }
+@keyframes tabIn {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+@media(max-width:600px) {
+  .wxt { padding: 8px 12px; font-size: .68rem; }
+  .wxt i { font-size: .9rem; }
+}
+
+/* ── Health & Activities Tabs ─────────────────────────────── */
+.health-panel,.activities-panel,.travel-panel {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.health-grid,.act-grid {
+  display: grid;
+  grid-template-columns: repeat(2,1fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+.health-card,.act-card {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  padding: 20px;
+  transition: all .25s;
+}
+.health-card:hover,.act-card:hover {
+  background: rgba(255,255,255,.08);
+  transform: translateY(-2px);
+  border-color: rgba(14,165,233,.2);
+}
+.hc-icon,.ac-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+.hc-label,.ac-label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--sky-2);
+  margin-bottom: 6px;
+}
+.hc-value,.ac-value { font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.hc-desc,.ac-desc { font-size: .8rem; color: rgba(255,255,255,.6); line-height: 1.5; }
+
+/* ── Travel Tab ────────────────────────────────────────────── */
+.travel-card {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 12px;
+}
+.travel-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.travel-card-header i { font-size: 1.3rem; color: var(--sky-2); }
+.travel-card-header h3 { font-size: 1rem; font-weight: 700; color: #fff; margin: 0; }
+.travel-tips-list { list-style: none; padding: 0; margin: 0; }
+.travel-tips-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  font-size: .85rem;
+  color: rgba(255,255,255,.75);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+}
+.travel-tips-list li:last-child { border-bottom: none; }
+.travel-tips-list li::before { content: '→'; color: var(--sky-2); flex-shrink: 0; margin-top: 1px; }
+
+@media(max-width:640px) {
+  .health-grid,.act-grid { grid-template-columns: 1fr; }
+}

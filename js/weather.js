@@ -889,17 +889,21 @@ async function triggerSearch(city) {
     displayHourly(forecastData, weatherData.timezone);
     renderTempChart(forecastData, weatherData.timezone);
     showContent();
+    showWxTab('hourly');
     updateCityButtons(weatherData.sys?.country);
-    loadDiscover(weatherData);
     generateAITips(weatherData);
 
     // UV + advanced details + AQI + outdoor score (non-blocking)
     const coord = weatherData.coord;
     fetchUV(coord.lat, coord.lon).then(uv => {
+      weatherData._uv = uv;
       displayAdvanced(weatherData, uv);
       displayOutdoorScore(calculateOutdoorScore(weatherData, uv));
     });
-    fetchAirQuality(coord.lat, coord.lon).then(aqiData => displayAQI(aqiData));
+    fetchAirQuality(coord.lat, coord.lon).then(aqiData => {
+      weatherData._aqi = aqiData?.list?.[0]?.main?.aqi;
+      displayAQI(aqiData);
+    });
     fetch7DayForecast(coord.lat, coord.lon).then(d7 => display7DayForecast(d7));
 
     // News section (non-blocking)
@@ -1002,16 +1006,19 @@ function handleGeoLocation() {
         displayHourly(forecastData, weatherData.timezone);
         renderTempChart(forecastData, weatherData.timezone);
         showContent();
+        showWxTab('hourly');
         updateCityButtons(weatherData.sys?.country);
-        loadDiscover(weatherData);
         generateAITips(weatherData);
 
-        fetchUV(weatherData.coord.lat, weatherData.coord.lon)
-          .then(uv => {
-            displayAdvanced(weatherData, uv);
-            displayOutdoorScore(calculateOutdoorScore(weatherData, uv));
-          });
-        fetchAirQuality(weatherData.coord.lat, weatherData.coord.lon).then(aqiData => displayAQI(aqiData));
+        fetchUV(weatherData.coord.lat, weatherData.coord.lon).then(uv => {
+          weatherData._uv = uv;
+          displayAdvanced(weatherData, uv);
+          displayOutdoorScore(calculateOutdoorScore(weatherData, uv));
+        });
+        fetchAirQuality(weatherData.coord.lat, weatherData.coord.lon).then(aqiData => {
+          weatherData._aqi = aqiData?.list?.[0]?.main?.aqi;
+          displayAQI(aqiData);
+        });
         fetch7DayForecast(weatherData.coord.lat, weatherData.coord.lon).then(d7 => display7DayForecast(d7));
 
         // News section
@@ -1664,6 +1671,205 @@ function showWeatherTip(weather) {
 
   banner.textContent = tip;
   banner.classList.add('show');
+}
+
+// ══════════════════════════════════════════════════════════════
+// TAB SYSTEM
+// ══════════════════════════════════════════════════════════════
+window.showWxTab = function(name) {
+  document.querySelectorAll('.wxt').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.wxt-panel').forEach(p => p.classList.remove('active'));
+  const tab   = document.getElementById('tab-' + name);
+  const panel = document.getElementById('panel-' + name);
+  if (tab)   tab.classList.add('active');
+  if (panel) panel.classList.add('active');
+
+  if (name === 'discover' && currentWeatherData?.weather && !discoverCity) {
+    loadDiscover(currentWeatherData.weather);
+  }
+  if (name === 'news') {
+    const grid = $('newsGrid');
+    if (grid && !grid.innerHTML.trim() && lastCity) {
+      if ($('newsCity')) $('newsCity').textContent = lastCity;
+      fetchCityNews(lastCity, currentWeatherData?.weather?.sys?.country || '');
+    }
+  }
+  if (name === 'health' && currentWeatherData?.weather) renderHealthTab(currentWeatherData.weather);
+  if (name === 'activities' && currentWeatherData?.weather) renderActivitiesTab(currentWeatherData.weather);
+  if (name === 'travel' && currentWeatherData?.weather) renderTravelTab(currentWeatherData.weather);
+};
+
+// ══════════════════════════════════════════════════════════════
+// HEALTH TAB
+// ══════════════════════════════════════════════════════════════
+function renderHealthTab(w) {
+  const grid = $('healthGrid');
+  if (!grid) return;
+
+  const temp     = Math.round(w.main.temp);
+  const humidity = w.main.humidity;
+  const uv       = w._uv || 0;
+  const aqi      = w._aqi || 1;
+  const wind     = Math.round(w.wind.speed * 3.6);
+  const code     = w.weather[0].icon.slice(0, 2);
+  const isDE     = ['DE','AT','CH'].includes(w.sys.country);
+
+  const uvLabel = uv <= 2 ? 'Low' : uv <= 5 ? 'Moderate' : uv <= 7 ? 'High' : uv <= 10 ? 'Very High' : 'Extreme';
+  const uvColor = uv <= 2 ? '#4ade80' : uv <= 5 ? '#facc15' : uv <= 7 ? '#fb923c' : '#f87171';
+  const aqiLabel = ['','Good','Fair','Moderate','Poor','Very Poor'][aqi] || 'Good';
+  const aqiColor = ['','#4ade80','#a3e635','#facc15','#fb923c','#f87171'][aqi] || '#4ade80';
+  const pollenRisk = (temp > 15 && code === '01') ? 'High' : (temp > 10 && ['01','02','03'].includes(code)) ? 'Medium' : 'Low';
+  const pollenColor = pollenRisk === 'High' ? '#fb923c' : pollenRisk === 'Medium' ? '#facc15' : '#4ade80';
+
+  grid.innerHTML = `
+    <div class="health-card">
+      <span class="hc-icon">☀️</span>
+      <div class="hc-label">UV Index</div>
+      <div class="hc-value" style="color:${uvColor}">${uv} — ${uvLabel}</div>
+      <div class="hc-desc">${uv >= 3 ? (isDE ? '🧴 Sonnencreme empfohlen' : '🧴 Sunscreen recommended') : (isDE ? '✅ Kein Sonnenschutz nötig' : '✅ No sun protection needed')}</div>
+    </div>
+    <div class="health-card">
+      <span class="hc-icon">💨</span>
+      <div class="hc-label">${isDE ? 'Luftqualität' : 'Air Quality'}</div>
+      <div class="hc-value" style="color:${aqiColor}">${aqiLabel}</div>
+      <div class="hc-desc">${aqi >= 4 ? (isDE ? '😷 Maske empfohlen bei Aktivitäten' : '😷 Mask recommended outdoors') : (isDE ? '✅ Gut für Sport im Freien' : '✅ Good for outdoor exercise')}</div>
+    </div>
+    <div class="health-card">
+      <span class="hc-icon">🌿</span>
+      <div class="hc-label">${isDE ? 'Pollenflug' : 'Pollen Risk'}</div>
+      <div class="hc-value" style="color:${pollenColor}">${pollenRisk}</div>
+      <div class="hc-desc">${pollenRisk === 'High' ? (isDE ? '🤧 Antihistaminika empfohlen' : '🤧 Antihistamines recommended') : (isDE ? '✅ Niedriges Pollenrisiko heute' : '✅ Low pollen risk today')}</div>
+    </div>
+    <div class="health-card">
+      <span class="hc-icon">💧</span>
+      <div class="hc-label">${isDE ? 'Luftfeuchtigkeit' : 'Humidity'}</div>
+      <div class="hc-value">${humidity}%</div>
+      <div class="hc-desc">${humidity > 80 ? (isDE ? '😓 Schwül — viel Wasser trinken' : '😓 Humid — drink plenty of water') : humidity < 30 ? (isDE ? '🏜️ Trocken — Haut befeuchten' : '🏜️ Dry air — moisturize skin') : (isDE ? '✅ Angenehme Luftfeuchtigkeit' : '✅ Comfortable humidity level')}</div>
+    </div>
+    <div class="health-card">
+      <span class="hc-icon">${temp < 5 ? '🥶' : temp > 30 ? '🥵' : '😊'}</span>
+      <div class="hc-label">${isDE ? 'Wohlfühltemperatur' : 'Comfort Level'}</div>
+      <div class="hc-value">${Math.round(w.main.feels_like)}°C ${isDE ? 'gefühlt' : 'feels like'}</div>
+      <div class="hc-desc">${temp < 0 ? (isDE ? '🧤 Handschuhe & Mütze nötig' : '🧤 Gloves & hat essential') : temp < 10 ? (isDE ? '🧥 Warme Jacke empfohlen' : '🧥 Warm jacket recommended') : temp > 30 ? (isDE ? '👕 Leichte Kleidung & Schatten' : '👕 Light clothing & seek shade') : (isDE ? '✅ Angenehme Bedingungen' : '✅ Comfortable conditions')}</div>
+    </div>
+    <div class="health-card">
+      <span class="hc-icon">🏃</span>
+      <div class="hc-label">${isDE ? 'Sport im Freien' : 'Outdoor Exercise'}</div>
+      <div class="hc-value" style="color:${aqi <= 2 && temp > 5 && temp < 35 ? '#4ade80' : '#fb923c'}">${aqi <= 2 && temp > 5 && temp < 35 ? (isDE ? 'Empfohlen' : 'Recommended') : (isDE ? 'Eingeschränkt' : 'Limited')}</div>
+      <div class="hc-desc">${wind > 40 ? (isDE ? '💨 Starker Wind — Vorsicht' : '💨 Strong wind — be careful') : (isDE ? `✅ Gut für Sport bei ${temp}°C` : `✅ Good for exercise at ${temp}°C`)}</div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ACTIVITIES TAB
+// ══════════════════════════════════════════════════════════════
+function renderActivitiesTab(w) {
+  const grid = $('actGrid');
+  if (!grid) return;
+
+  const temp  = Math.round(w.main.temp);
+  const wind  = Math.round(w.wind.speed * 3.6);
+  const icon2 = w.weather[0].icon.slice(0, 2);
+  const rain  = ['09','10','11'].includes(icon2);
+  const snow  = icon2 === '13';
+  const isDE  = ['DE','AT','CH'].includes(w.sys.country);
+
+  const score = (ideal, bad) => {
+    if (bad)   return { s: '❌', c: '#f87171', t: isDE ? 'Nicht empfohlen' : 'Not recommended' };
+    if (ideal) return { s: '✅', c: '#4ade80', t: isDE ? 'Perfekt' : 'Perfect' };
+    return { s: '⚠️', c: '#facc15', t: isDE ? 'Möglich' : 'Possible' };
+  };
+
+  const running  = score(temp >= 8 && temp <= 20 && !rain, rain || temp < 0 || temp > 35);
+  const cycling  = score(temp >= 10 && !rain && wind < 30, rain || wind > 40 || temp < 5);
+  const swimming = score(temp >= 25, temp < 18 || rain);
+  const hiking   = score(temp >= 10 && temp <= 28 && !rain, rain || snow || temp < 0);
+  const golf     = score(!rain && wind < 25 && temp > 10, rain || wind > 35 || temp < 5);
+  const skiing   = score(snow || temp < 0, temp > 5 || rain);
+
+  const acts = [
+    { icon:'🏃', name: isDE?'Laufen':'Running', ...running,
+      tip: rain ? (isDE?'Regen — Laufband empfohlen':'Rain — treadmill recommended') : `${temp}°C` },
+    { icon:'🚴', name: isDE?'Radfahren':'Cycling', ...cycling,
+      tip: wind > 30 ? (isDE?`${wind}km/h Wind — vorsichtig`:`${wind}km/h wind — careful`) : (isDE?'Gute Bedingungen':'Good conditions') },
+    { icon:'🏊', name: isDE?'Schwimmen':'Swimming', ...swimming,
+      tip: temp >= 25 ? (isDE?'Warm genug fürs Freibad':'Warm enough for outdoor pool') : (isDE?'Lieber Hallenbad':'Indoor pool recommended') },
+    { icon:'🥾', name: isDE?'Wandern':'Hiking', ...hiking,
+      tip: snow ? (isDE?'Schnee — feste Schuhe nötig':'Snow — sturdy boots needed') : (isDE?'Tolle Wanderbedingungen':'Great hiking conditions') },
+    { icon:'⛳', name: 'Golf', ...golf,
+      tip: rain ? (isDE?'Regen — nicht ideal':'Rain — not ideal') : (isDE?'Gute Golfrunde heute':'Good round today') },
+    { icon:'⛷️', name: isDE?'Ski/Winter':'Ski/Winter', ...skiing,
+      tip: snow ? (isDE?'Schnee! Perfekt':'Snow! Perfect') : (isDE?'Kein Schnee aktuell':'No snow currently') },
+  ];
+
+  grid.innerHTML = acts.map(a => `
+    <div class="act-card">
+      <span class="ac-icon">${a.icon}</span>
+      <div class="ac-label">${a.name}</div>
+      <div class="ac-value" style="color:${a.c}">${a.s} ${a.t}</div>
+      <div class="ac-desc">${a.tip}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// TRAVEL TAB
+// ══════════════════════════════════════════════════════════════
+function renderTravelTab(w) {
+  const el   = $('travelTips');
+  if (!el) return;
+
+  const temp = Math.round(w.main.temp);
+  const wind = Math.round(w.wind.speed * 3.6);
+  const icon2= w.weather[0].icon.slice(0, 2);
+  const rain = ['09','10','11'].includes(icon2);
+  const snow = icon2 === '13';
+  const city = w.name;
+  const isDE = ['DE','AT','CH'].includes(w.sys.country);
+
+  el.innerHTML = `
+    <div class="travel-card">
+      <div class="travel-card-header"><i class="fas fa-suitcase"></i><h3>${isDE ? 'Was einpacken' : 'What to Pack'}</h3></div>
+      <ul class="travel-tips-list">
+        ${temp < 5  ? `<li>${isDE?'Warme Winterjacke, Schal & Handschuhe':'Heavy winter coat, scarf & gloves'}</li>` : ''}
+        ${temp < 15 ? `<li>${isDE?'Pullover oder Fleecejacke als Schicht':'Sweater or fleece layer'}</li>` : ''}
+        ${rain      ? `<li>${isDE?'Regenschirm oder Regenmantel — unverzichtbar!':'Umbrella or rain jacket — essential today!'}</li>` : ''}
+        ${snow      ? `<li>${isDE?'Wasserfeste Stiefel und warme Socken':'Waterproof boots and warm socks'}</li>` : ''}
+        ${temp > 20 ? `<li>${isDE?'Sonnencreme und Sonnenbrille':'Sunscreen and sunglasses'}</li>` : ''}
+        ${temp > 25 ? `<li>${isDE?'Leichte, atmungsaktive Kleidung':'Light, breathable clothing'}</li>` : ''}
+        <li>${isDE?'Wasserflasche — immer gut hydriert bleiben':'Water bottle — stay hydrated always'}</li>
+      </ul>
+    </div>
+    <div class="travel-card">
+      <div class="travel-card-header"><i class="fas fa-car"></i><h3>${isDE ? 'Verkehr & Pendeln' : 'Travel & Commute'}</h3></div>
+      <ul class="travel-tips-list">
+        ${rain   ? `<li>${isDE?'Rutschige Straßen — langsam fahren & Abstand halten':'Slippery roads — drive slowly and keep distance'}</li>` : ''}
+        ${snow   ? `<li>${isDE?'Winterreifen prüfen! Glatteisgefahr auf Straßen':'Check winter tyres! Ice risk on roads'}</li>` : ''}
+        ${wind > 40 ? `<li>${isDE?`${wind}km/h Sturm — Fahrrad meiden`:`${wind}km/h storm — avoid cycling`}</li>` : ''}
+        <li>${isDE?'Aktuelle Verkehrslage in Google Maps prüfen':'Check current traffic conditions on Google Maps'}</li>
+        ${rain || snow ? `<li>${isDE?'ÖPNV heute eine gute Alternative':'Public transport is a good alternative today'}</li>` : ''}
+        <li>${isDE?`Für ${city}: Abfahrt etwas früher planen`:`For ${city}: plan to leave a little earlier`}</li>
+      </ul>
+    </div>
+    <div class="travel-card">
+      <div class="travel-card-header"><i class="fas fa-map-location-dot"></i><h3>${isDE ? 'Tourismus-Tipps für ' + city : 'Tourist Tips for ' + city}</h3></div>
+      <ul class="travel-tips-list">
+        ${rain ? `<li>${isDE?'Museen, Galerien und Cafés sind heute ideal':'Museums, galleries and cafes are ideal today'}</li>` : ''}
+        ${!rain && temp > 15 ? `<li>${isDE?'Perfektes Wetter für Stadtbesichtigung und Parks':'Perfect weather for sightseeing and parks'}</li>` : ''}
+        ${temp < 5 ? `<li>${isDE?'Warme Cafés und Indoor-Attraktionen bevorzugen':'Prefer warm cafes and indoor attractions'}</li>` : ''}
+        <li>${isDE?'Frühzeitig Tickets buchen spart Zeit':'Book tickets in advance to save time'}</li>
+        <li>${isDE?'Lokale Restaurants für authentische Küche entdecken':'Discover local restaurants for authentic cuisine'}</li>
+        <li>${isDE?`${city} Entdecken-Tab für Orte in der Nähe nutzen`:`Use the Discover tab to find places near ${city}`}</li>
+      </ul>
+    </div>
+    <div class="travel-card">
+      <div class="travel-card-header"><i class="fas fa-camera"></i><h3>${isDE ? 'Foto-Tipps' : 'Photography Tips'}</h3></div>
+      <ul class="travel-tips-list">
+        ${rain ? `<li>${isDE?'Regenwetter schafft dramatische, stimmungsvolle Fotos':'Rainy weather creates dramatic, moody photos'}</li>` : ''}
+        ${!rain && temp > 15 ? `<li>${isDE?'Goldene Stunde: 1 Stunde nach Sonnenaufgang oder vor Sonnenuntergang':'Golden hour: 1h after sunrise or before sunset'}</li>` : ''}
+        ${snow ? `<li>${isDE?'Schnee reflektiert Licht — Belichtung anpassen':'Snow reflects light — adjust your exposure'}</li>` : ''}
+        <li>${isDE?'Kameraschutz bei schlechtem Wetter verwenden':'Use camera protection in bad weather'}</li>
+      </ul>
+    </div>`;
 }
 
 window.switchDiscoverTab = async function(category, btn) {

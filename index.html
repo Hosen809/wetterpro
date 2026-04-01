@@ -213,7 +213,7 @@
     <!-- ── Content panels (shown after successful search) ── -->
     <div class="content-panels" id="contentPanels">
 
-      <!-- 1. Current Weather Card -->
+      <!-- Always visible: Current Weather Card -->
       <section class="wx-panel panel-appear" id="panelCurrent">
         <div class="wxp-top">
           <div class="wxp-location">
@@ -264,352 +264,270 @@
         </div>
       </section>
 
-      <!-- 2. Advanced Details + AQI + Outdoor Score -->
-      <section class="adv-panel panel-appear" id="panelAdv">
+      <!-- Tab bar -->
+      <div class="wx-tab-bar" id="wxTabBar">
+        <button class="wxt active" id="tab-hourly" onclick="showWxTab('hourly')">
+          <i class="fas fa-clock"></i><span>Hourly</span>
+        </button>
+        <button class="wxt" id="tab-week" onclick="showWxTab('week')">
+          <i class="fas fa-calendar-days"></i><span>7-Day</span>
+        </button>
+        <button class="wxt" id="tab-details" onclick="showWxTab('details')">
+          <i class="fas fa-wind"></i><span>Details</span>
+        </button>
+        <button class="wxt" id="tab-health" onclick="showWxTab('health')">
+          <i class="fas fa-heart-pulse"></i><span>Health</span>
+        </button>
+        <button class="wxt" id="tab-activities" onclick="showWxTab('activities')">
+          <i class="fas fa-person-running"></i><span>Activities</span>
+        </button>
+        <button class="wxt" id="tab-travel" onclick="showWxTab('travel')">
+          <i class="fas fa-plane"></i><span>Travel</span>
+        </button>
+        <button class="wxt" id="tab-discover" onclick="showWxTab('discover')">
+          <i class="fas fa-compass"></i><span>Discover</span>
+        </button>
+        <button class="wxt" id="tab-news" onclick="showWxTab('news')">
+          <i class="fas fa-newspaper"></i><span>News</span>
+        </button>
+      </div>
 
-        <!-- Wind Compass -->
-        <div class="adv-card">
-          <div class="adv-head"><i class="fas fa-compass"></i> Wind</div>
-          <div class="compass-wrap">
-            <div class="compass-ring">
-              <span class="cr-label cr-n">N</span>
-              <span class="cr-label cr-e">E</span>
-              <span class="cr-label cr-s">S</span>
-              <span class="cr-label cr-w">W</span>
-              <div class="compass-needle" id="compassNeedle">
-                <div class="needle-n"></div>
-                <div class="needle-s"></div>
+      <!-- ═══ HOURLY TAB (default active) ═══ -->
+      <div class="wxt-panel active" id="panel-hourly">
+        <section class="hourly-panel panel-appear" id="hourly">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-clock"></i> 24-Hour Forecast</h2>
+            <div class="scroll-btns">
+              <button class="scr-btn" id="scrLeft"><i class="fas fa-chevron-left"></i></button>
+              <button class="scr-btn" id="scrRight"><i class="fas fa-chevron-right"></i></button>
+            </div>
+          </div>
+          <div class="hourly-scroll" id="hourlyScroll">
+            <div class="hourly-track" id="hourlyTrack"></div>
+          </div>
+        </section>
+        <section class="chart-panel panel-appear" id="panelChart">
+          <h2><i class="fas fa-chart-line"></i> Temperature Trend</h2>
+          <div class="chart-outer">
+            <canvas id="tempChart"></canvas>
+          </div>
+        </section>
+      </div><!-- /panel-hourly -->
+
+      <!-- ═══ 7-DAY TAB ═══ -->
+      <div class="wxt-panel" id="panel-week">
+        <section class="forecast-panel panel-appear" id="forecast7">
+          <h2><i class="fas fa-calendar-days"></i> 7-Day Extended Forecast</h2>
+          <div class="forecast-rows" id="forecast7Rows"></div>
+        </section>
+        <section class="city-info-panel panel-appear" id="cityInfo">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-city"></i> About <span id="cityInfoName">—</span></h2>
+          </div>
+          <div class="city-info-grid">
+            <div class="ci-card ci-wiki" id="wikiCard">
+              <div class="ci-card-header"><i class="fas fa-book-open"></i><span>City Overview</span></div>
+              <div id="wikiImg" class="ci-wiki-img" style="display:none">
+                <img id="wikiImgEl" src="" alt="" loading="lazy">
               </div>
+              <p id="wikiExtract" class="ci-wiki-text">Loading city information…</p>
+              <a id="wikiLink" href="#" target="_blank" rel="noopener" class="ci-read-more">Read more on Wikipedia</a>
+            </div>
+            <div class="ci-card ci-country" id="countryCard">
+              <div class="ci-card-header"><i class="fas fa-flag"></i><span>Country Facts</span></div>
+              <div class="ci-facts-list">
+                <div class="ci-fact-row"><span class="ci-fact-icon" id="countryFlag">🌍</span><div><div class="ci-fact-label">Country</div><div class="ci-fact-value" id="countryName">—</div></div></div>
+                <div class="ci-fact-row"><span class="ci-fact-icon">👥</span><div><div class="ci-fact-label">Population</div><div class="ci-fact-value" id="countryPop">—</div></div></div>
+                <div class="ci-fact-row"><span class="ci-fact-icon">🏛️</span><div><div class="ci-fact-label">Capital</div><div class="ci-fact-value" id="countryCapital">—</div></div></div>
+                <div class="ci-fact-row"><span class="ci-fact-icon">💰</span><div><div class="ci-fact-label">Currency</div><div class="ci-fact-value" id="countryCurrency">—</div></div></div>
+                <div class="ci-fact-row"><span class="ci-fact-icon">🗣️</span><div><div class="ci-fact-label">Language</div><div class="ci-fact-value" id="countryLang">—</div></div></div>
+                <div class="ci-fact-row"><span class="ci-fact-icon">🌐</span><div><div class="ci-fact-label">Region</div><div class="ci-fact-value" id="countryRegion">—</div></div></div>
+              </div>
+            </div>
+            <div class="ci-card ci-time" id="timeCard">
+              <div class="ci-card-header"><i class="fas fa-clock"></i><span>Local Time</span></div>
+              <div class="ci-time-display">
+                <div class="ci-time-big" id="localTimeBig">--:--</div>
+                <div class="ci-time-date" id="localTimeDate">—</div>
+                <div class="ci-time-zone" id="localTimeZone">—</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div><!-- /panel-week -->
+
+      <!-- ═══ DETAILS TAB ═══ -->
+      <div class="wxt-panel" id="panel-details">
+        <section class="adv-panel panel-appear" id="panelAdv">
+          <div class="adv-card">
+            <div class="adv-head"><i class="fas fa-compass"></i> Wind</div>
+            <div class="compass-wrap"><div class="compass-ring">
+              <span class="cr-label cr-n">N</span><span class="cr-label cr-e">E</span>
+              <span class="cr-label cr-s">S</span><span class="cr-label cr-w">W</span>
+              <div class="compass-needle" id="compassNeedle"><div class="needle-n"></div><div class="needle-s"></div></div>
               <div class="compass-dot"></div>
+            </div></div>
+            <p class="adv-val" id="advWindSpeed">—</p>
+            <p class="adv-sub" id="advWindDir">—</p>
+          </div>
+          <div class="adv-card">
+            <div class="adv-head"><i class="fas fa-sun"></i> UV Index</div>
+            <div class="uv-display"><span class="uv-num" id="uvNum">—</span><span class="uv-cat" id="uvCat">—</span></div>
+            <div class="uv-bar-wrap"><div class="uv-gradient-bar"><div class="uv-marker" id="uvMarker" style="left:0%"></div></div>
+              <div class="uv-scale-labels"><span>Low</span><span>Mod</span><span>High</span><span>V.High</span><span>Ext</span></div>
             </div>
           </div>
-          <p class="adv-val" id="advWindSpeed">—</p>
-          <p class="adv-sub" id="advWindDir">—</p>
-        </div>
-
-        <!-- UV Index -->
-        <div class="adv-card">
-          <div class="adv-head"><i class="fas fa-sun"></i> UV Index</div>
-          <div class="uv-display">
-            <span class="uv-num" id="uvNum">—</span>
-            <span class="uv-cat" id="uvCat">—</span>
-          </div>
-          <div class="uv-bar-wrap">
-            <div class="uv-gradient-bar">
-              <div class="uv-marker" id="uvMarker" style="left:0%"></div>
+          <div class="adv-card">
+            <div class="adv-head"><i class="fas fa-droplet"></i> Humidity</div>
+            <div class="hum-gauge-wrap">
+              <svg class="hum-svg" viewBox="0 0 140 140">
+                <defs><linearGradient id="humGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#6366f1"/></linearGradient></defs>
+                <circle class="hum-track" cx="70" cy="70" r="54"/>
+                <circle class="hum-fill" id="humFill" cx="70" cy="70" r="54"/>
+              </svg>
+              <div class="hum-center"><span id="humPct">—</span><small>%</small></div>
             </div>
-            <div class="uv-scale-labels">
-              <span>Low</span><span>Mod</span><span>High</span><span>V.High</span><span>Ext</span>
-            </div>
+            <p class="adv-sub" id="humDesc">—</p>
           </div>
-        </div>
-
-        <!-- Humidity Gauge -->
-        <div class="adv-card">
-          <div class="adv-head"><i class="fas fa-droplet"></i> Humidity</div>
-          <div class="hum-gauge-wrap">
-            <svg class="hum-svg" viewBox="0 0 140 140">
-              <defs>
-                <linearGradient id="humGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#06b6d4"/>
-                  <stop offset="100%" stop-color="#6366f1"/>
-                </linearGradient>
-              </defs>
-              <circle class="hum-track" cx="70" cy="70" r="54"/>
-              <circle class="hum-fill" id="humFill" cx="70" cy="70" r="54"/>
-            </svg>
-            <div class="hum-center">
-              <span id="humPct">—</span>
-              <small>%</small>
+          <div class="adv-card">
+            <div class="adv-head"><i class="fas fa-gauge-high"></i> Pressure</div>
+            <div class="pres-val-wrap"><span class="pres-big" id="presBig">—</span><span class="pres-unit">hPa</span></div>
+            <div class="pres-trend" id="presTrend"><i class="fas fa-arrow-up" id="presTrendIcon"></i><span id="presTrendText">—</span></div>
+            <div class="pres-bar-wrap"><div class="pres-bar"><div class="pres-marker" id="presMarker"></div></div>
+              <div class="pres-bar-labels"><span>Low</span><span>Normal</span><span>High</span></div>
             </div>
           </div>
-          <p class="adv-sub" id="humDesc">—</p>
-        </div>
-
-        <!-- Pressure -->
-        <div class="adv-card">
-          <div class="adv-head"><i class="fas fa-gauge-high"></i> Pressure</div>
-          <div class="pres-val-wrap">
-            <span class="pres-big" id="presBig">—</span>
-            <span class="pres-unit">hPa</span>
-          </div>
-          <div class="pres-trend" id="presTrend">
-            <i class="fas fa-arrow-up" id="presTrendIcon"></i>
-            <span id="presTrendText">—</span>
-          </div>
-          <div class="pres-bar-wrap">
-            <div class="pres-bar">
-              <div class="pres-marker" id="presMarker"></div>
+          <div class="adv-card sun-arc-card">
+            <div class="adv-head"><i class="fas fa-sun"></i> Sun</div>
+            <div class="sun-arc-wrap">
+              <svg class="sun-arc-svg" viewBox="0 0 200 120">
+                <path class="arc-track" d="M 15,100 A 85,85 0 0,1 185,100" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="5" stroke-linecap="round"/>
+                <path class="arc-fill" id="arcFill" d="M 15,100 A 85,85 0 0,1 185,100" fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round" stroke-dasharray="267" stroke-dashoffset="267"/>
+                <circle id="sunArcDot" cx="15" cy="100" r="8" fill="#fbbf24" filter="drop-shadow(0 0 6px rgba(251,191,36,.8))"/>
+              </svg>
             </div>
-            <div class="pres-bar-labels">
-              <span>Low</span><span>Normal</span><span>High</span>
+            <div class="sun-times-row">
+              <div class="stt"><i class="fas fa-sunrise"></i><span id="advSunrise">—</span></div>
+              <div class="stt"><i class="fas fa-sunset"></i><span id="advSunset">—</span></div>
             </div>
           </div>
-        </div>
-
-        <!-- Sunrise / Sunset -->
-        <div class="adv-card sun-arc-card">
-          <div class="adv-head"><i class="fas fa-sun"></i> Sun</div>
-          <div class="sun-arc-wrap">
-            <svg class="sun-arc-svg" viewBox="0 0 200 120">
-              <path class="arc-track"
-                d="M 15,100 A 85,85 0 0,1 185,100"
-                fill="none" stroke="rgba(255,255,255,.12)" stroke-width="5" stroke-linecap="round"/>
-              <path class="arc-fill" id="arcFill"
-                d="M 15,100 A 85,85 0 0,1 185,100"
-                fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"
-                stroke-dasharray="267" stroke-dashoffset="267"/>
-              <circle id="sunArcDot" cx="15" cy="100" r="8" fill="#fbbf24"
-                filter="drop-shadow(0 0 6px rgba(251,191,36,.8))"/>
-            </svg>
+          <div class="adv-card">
+            <div class="adv-head"><i class="fas fa-cloud"></i> Cloud Cover</div>
+            <div class="cloud-big" id="cloudBig">—</div>
+            <div class="cloud-bar-outer"><div class="cloud-bar-inner" id="cloudBarInner"></div></div>
+            <p class="adv-sub" id="cloudDesc">—</p>
           </div>
-          <div class="sun-times-row">
-            <div class="stt">
-              <i class="fas fa-sunrise"></i>
-              <span id="advSunrise">—</span>
+          <div class="adv-card aqi-card" id="aqiCard">
+            <div class="adv-head"><i class="fas fa-leaf"></i> Air Quality</div>
+            <div class="aqi-display"><span class="aqi-num" id="aqiNum">—</span><span class="aqi-cat" id="aqiCat">—</span></div>
+            <div class="aqi-bar-wrap"><div class="aqi-gradient-bar"><div class="aqi-marker" id="aqiMarker" style="left:0%"></div></div>
+              <div class="aqi-scale-labels"><span>Good</span><span>Fair</span><span>Mod</span><span>Poor</span><span>V.Poor</span></div>
             </div>
-            <div class="stt">
-              <i class="fas fa-sunset"></i>
-              <span id="advSunset">—</span>
-            </div>
+            <div class="aqi-pollutants" id="aqiPollutants"></div>
           </div>
-        </div>
-
-        <!-- Cloud Cover -->
-        <div class="adv-card">
-          <div class="adv-head"><i class="fas fa-cloud"></i> Cloud Cover</div>
-          <div class="cloud-big" id="cloudBig">—</div>
-          <div class="cloud-bar-outer">
-            <div class="cloud-bar-inner" id="cloudBarInner"></div>
+          <div class="adv-card" id="outdoorCard">
+            <div class="adv-head"><i class="fas fa-person-running"></i> Outdoor Score</div>
+            <div class="outdoor-score-wrap"><span class="outdoor-emoji" id="outdoorEmoji">—</span><span class="outdoor-num" id="outdoorScore">—</span></div>
+            <p class="adv-sub" id="outdoorLabel">—</p>
+            <div class="outdoor-bar-outer"><div class="outdoor-bar-inner" id="outdoorBarInner" style="width:0%"></div></div>
           </div>
-          <p class="adv-sub" id="cloudDesc">—</p>
-        </div>
+        </section>
+      </div><!-- /panel-details -->
 
-        <!-- Air Quality Index -->
-        <div class="adv-card aqi-card" id="aqiCard">
-          <div class="adv-head"><i class="fas fa-leaf"></i> Air Quality</div>
-          <div class="aqi-display">
-            <span class="aqi-num" id="aqiNum">—</span>
-            <span class="aqi-cat" id="aqiCat">—</span>
+      <!-- ═══ HEALTH TAB ═══ -->
+      <div class="wxt-panel" id="panel-health">
+        <section class="health-panel panel-appear">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-heart-pulse"></i> Health &amp; Wellbeing</h2>
           </div>
-          <div class="aqi-bar-wrap">
-            <div class="aqi-gradient-bar">
-              <div class="aqi-marker" id="aqiMarker" style="left:0%"></div>
-            </div>
-            <div class="aqi-scale-labels">
-              <span>Good</span><span>Fair</span><span>Mod</span><span>Poor</span><span>V.Poor</span>
-            </div>
+          <div class="health-grid" id="healthGrid"></div>
+        </section>
+      </div><!-- /panel-health -->
+
+      <!-- ═══ ACTIVITIES TAB ═══ -->
+      <div class="wxt-panel" id="panel-activities">
+        <section class="activities-panel panel-appear">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-person-running"></i> Activity Forecast</h2>
           </div>
-          <div class="aqi-pollutants" id="aqiPollutants"></div>
-        </div>
+          <div class="act-grid" id="actGrid"></div>
+        </section>
+      </div><!-- /panel-activities -->
 
-        <!-- Outdoor Activity Score -->
-        <div class="adv-card" id="outdoorCard">
-          <div class="adv-head"><i class="fas fa-person-running"></i> Outdoor Score</div>
-          <div class="outdoor-score-wrap">
-            <span class="outdoor-emoji" id="outdoorEmoji">—</span>
-            <span class="outdoor-num" id="outdoorScore">—</span>
+      <!-- ═══ TRAVEL TAB ═══ -->
+      <div class="wxt-panel" id="panel-travel">
+        <section class="travel-panel panel-appear">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-plane"></i> Travel &amp; Tour Guide</h2>
           </div>
-          <p class="adv-sub" id="outdoorLabel">—</p>
-          <div class="outdoor-bar-outer">
-            <div class="outdoor-bar-inner" id="outdoorBarInner" style="width:0%"></div>
+          <div id="travelTips"></div>
+        </section>
+      </div><!-- /panel-travel -->
+
+      <!-- ═══ DISCOVER TAB ═══ -->
+      <div class="wxt-panel" id="panel-discover">
+        <section class="discover-panel panel-appear" id="discover">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-compass"></i> Discover <span id="discoverCity">—</span></h2>
           </div>
-        </div>
-
-      </section>
-
-      <!-- 3. Hourly Forecast -->
-      <section class="hourly-panel panel-appear" id="hourly">
-        <div class="panel-title-row">
-          <h2><i class="fas fa-clock"></i> 24-Hour Forecast</h2>
-          <div class="scroll-btns">
-            <button class="scr-btn" id="scrLeft"><i class="fas fa-chevron-left"></i></button>
-            <button class="scr-btn" id="scrRight"><i class="fas fa-chevron-right"></i></button>
+          <div class="discover-tabs" id="discoverTabs">
+            <button class="disc-tab active" onclick="switchDiscoverTab('restaurants',this)">🍽️ Restaurants</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('sports',this)">⚽ Sports</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('fitness',this)">🏋️ Fitness</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('health',this)">🏥 Health</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('shopping',this)">🛍️ Shopping</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('hotels',this)">🏨 Hotels</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('attractions',this)">🎭 Culture</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('cafes',this)">☕ Cafes</button>
+            <button class="disc-tab" onclick="switchDiscoverTab('parks',this)">🌳 Parks</button>
           </div>
-        </div>
-        <div class="hourly-scroll" id="hourlyScroll">
-          <div class="hourly-track" id="hourlyTrack"></div>
-        </div>
-      </section>
-
-      <!-- 4. Temperature Chart -->
-      <section class="chart-panel panel-appear" id="panelChart">
-        <h2><i class="fas fa-chart-line"></i> Temperature Trend</h2>
-        <div class="chart-outer">
-          <canvas id="tempChart"></canvas>
-        </div>
-      </section>
-
-      <!-- 5. 7-Day Extended Forecast -->
-      <section class="forecast-panel panel-appear" id="forecast7">
-        <h2><i class="fas fa-calendar-days"></i> 7-Day Extended Forecast</h2>
-        <div class="forecast-rows" id="forecast7Rows"></div>
-      </section>
-
-      <!-- 7. City Information -->
-      <section class="city-info-panel panel-appear" id="cityInfo">
-        <div class="panel-title-row">
-          <h2><i class="fas fa-city"></i> About <span id="cityInfoName">—</span></h2>
-        </div>
-        <div class="city-info-grid">
-
-          <!-- Wikipedia City Summary -->
-          <div class="ci-card ci-wiki" id="wikiCard">
-            <div class="ci-card-header">
-              <i class="fas fa-book-open"></i>
-              <span>City Overview</span>
-            </div>
-            <div id="wikiImg" class="ci-wiki-img" style="display:none">
-              <img id="wikiImgEl" src="" alt="" loading="lazy">
-            </div>
-            <p id="wikiExtract" class="ci-wiki-text">Loading city information…</p>
-            <a id="wikiLink" href="#" target="_blank" rel="noopener" class="ci-read-more">Read more on Wikipedia</a>
+          <div class="weather-tip-banner" id="weatherTipBanner"></div>
+          <div class="places-loading" id="placesLoading" style="display:none">
+            <div class="skel" style="height:120px;border-radius:12px;margin-bottom:10px"></div>
+            <div class="skel" style="height:120px;border-radius:12px;margin-bottom:10px"></div>
+            <div class="skel" style="height:120px;border-radius:12px"></div>
           </div>
+          <div class="places-grid" id="placesGrid"></div>
+          <div class="discover-map-wrap">
+            <iframe id="discoverMapFrame" width="100%" height="320"
+              style="border:0;border-radius:16px;display:block"
+              allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="">
+            </iframe>
+          </div>
+        </section>
+      </div><!-- /panel-discover -->
 
-          <!-- Country Facts -->
-          <div class="ci-card ci-country" id="countryCard">
-            <div class="ci-card-header">
-              <i class="fas fa-flag"></i>
-              <span>Country Facts</span>
-            </div>
-            <div class="ci-facts-list">
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon" id="countryFlag">🌍</span>
-                <div>
-                  <div class="ci-fact-label">Country</div>
-                  <div class="ci-fact-value" id="countryName">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">👥</span>
-                <div>
-                  <div class="ci-fact-label">Population</div>
-                  <div class="ci-fact-value" id="countryPop">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">🏛️</span>
-                <div>
-                  <div class="ci-fact-label">Capital</div>
-                  <div class="ci-fact-value" id="countryCapital">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">💰</span>
-                <div>
-                  <div class="ci-fact-label">Currency</div>
-                  <div class="ci-fact-value" id="countryCurrency">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">🗣️</span>
-                <div>
-                  <div class="ci-fact-label">Language</div>
-                  <div class="ci-fact-value" id="countryLang">—</div>
-                </div>
-              </div>
-              <div class="ci-fact-row">
-                <span class="ci-fact-icon">🌐</span>
-                <div>
-                  <div class="ci-fact-label">Region</div>
-                  <div class="ci-fact-value" id="countryRegion">—</div>
-                </div>
-              </div>
+      <!-- ═══ NEWS TAB ═══ -->
+      <div class="wxt-panel" id="panel-news">
+        <section class="news-panel panel-appear" id="news">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-newspaper"></i> Local News &nbsp;&middot;&nbsp; <span id="newsCity">—</span></h2>
+            <button class="news-refresh" id="newsRefresh" title="Refresh news"><i class="fas fa-rotate-right"></i></button>
+          </div>
+          <div class="news-skel" id="newsSkel" style="display:none">
+            <div class="news-skel-grid">
+              <div class="skel news-skel-card"></div>
+              <div class="skel news-skel-card"></div>
+              <div class="skel news-skel-card"></div>
+              <div class="skel news-skel-card"></div>
             </div>
           </div>
-
-          <!-- Local Time -->
-          <div class="ci-card ci-time" id="timeCard">
-            <div class="ci-card-header">
-              <i class="fas fa-clock"></i>
-              <span>Local Time</span>
-            </div>
-            <div class="ci-time-display">
-              <div class="ci-time-big" id="localTimeBig">--:--</div>
-              <div class="ci-time-date" id="localTimeDate">—</div>
-              <div class="ci-time-zone" id="localTimeZone">—</div>
-            </div>
+          <div class="news-grid" id="newsGrid"></div>
+          <div class="news-msg" id="newsMsg" style="display:none"></div>
+        </section>
+        <section class="ai-tips-panel panel-appear" id="aiTipsPanel">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-robot"></i> AI Weather Tips &nbsp;<span class="ai-badge">Groq AI</span></h2>
           </div>
-
-        </div>
-      </section>
-
-      <!-- 8. Discover City -->
-      <section class="discover-panel panel-appear" id="discover">
-        <div class="panel-title-row">
-          <h2><i class="fas fa-compass"></i> Discover <span id="discoverCity">—</span></h2>
-        </div>
-
-        <!-- Category tabs -->
-        <div class="discover-tabs" id="discoverTabs">
-          <button class="disc-tab active" onclick="switchDiscoverTab('restaurants',this)">🍽️ Restaurants</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('sports',this)">⚽ Sports</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('fitness',this)">🏋️ Fitness</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('health',this)">🏥 Health</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('shopping',this)">🛍️ Shopping</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('hotels',this)">🏨 Hotels</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('attractions',this)">🎭 Culture</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('cafes',this)">☕ Cafes</button>
-          <button class="disc-tab" onclick="switchDiscoverTab('parks',this)">🌳 Parks</button>
-        </div>
-
-        <!-- Weather tip banner -->
-        <div class="weather-tip-banner" id="weatherTipBanner"></div>
-
-        <!-- Places grid -->
-        <div class="places-loading" id="placesLoading" style="display:none">
-          <div class="skel" style="height:120px;border-radius:12px;margin-bottom:10px"></div>
-          <div class="skel" style="height:120px;border-radius:12px;margin-bottom:10px"></div>
-          <div class="skel" style="height:120px;border-radius:12px"></div>
-        </div>
-        <div class="places-grid" id="placesGrid"></div>
-
-        <!-- Map -->
-        <div class="discover-map-wrap">
-          <iframe
-            id="discoverMapFrame"
-            width="100%"
-            height="320"
-            style="border:0;border-radius:16px;display:block"
-            allowfullscreen=""
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-            src="">
-          </iframe>
-        </div>
-      </section>
-
-      <!-- 9. Local News -->
-      <section class="news-panel panel-appear" id="news">
-        <div class="panel-title-row">
-          <h2><i class="fas fa-newspaper"></i> Local News &nbsp;&middot;&nbsp; <span id="newsCity">—</span></h2>
-          <button class="news-refresh" id="newsRefresh" title="Refresh news"><i class="fas fa-rotate-right"></i></button>
-        </div>
-        <div class="news-skel" id="newsSkel" style="display:none">
-          <div class="news-skel-grid">
-            <div class="skel news-skel-card"></div>
-            <div class="skel news-skel-card"></div>
-            <div class="skel news-skel-card"></div>
-            <div class="skel news-skel-card"></div>
+          <div class="ai-loading" id="aiLoading" style="display:none">
+            <div class="ai-spinner"><i class="fas fa-circle-notch fa-spin"></i></div>
+            <span>Generating smart tips…</span>
           </div>
-        </div>
-        <div class="news-grid" id="newsGrid"></div>
-        <div class="news-msg" id="newsMsg" style="display:none"></div>
-      </section>
+          <div class="ai-tips-grid" id="aiTipsGrid"></div>
+        </section>
+      </div><!-- /panel-news -->
 
-      <!-- 10. AI Weather Tips -->
-      <section class="ai-tips-panel panel-appear" id="aiTipsPanel">
-        <div class="panel-title-row">
-          <h2><i class="fas fa-robot"></i> AI Weather Tips &nbsp;<span class="ai-badge">Groq AI</span></h2>
-        </div>
-        <div class="ai-loading" id="aiLoading" style="display:none">
-          <div class="ai-spinner"><i class="fas fa-circle-notch fa-spin"></i></div>
-          <span>Generating smart tips…</span>
-        </div>
-        <div class="ai-tips-grid" id="aiTipsGrid"></div>
-      </section>
-
-      <!-- Recent searches (only shown here, after search) -->
+      <!-- Recent searches (always visible after search) -->
       <div class="recent-wrap" id="recentWrap">
         <h3><i class="fas fa-history"></i> Recent Searches</h3>
         <div class="recent-chips" id="recentChips"></div>
