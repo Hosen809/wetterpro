@@ -423,7 +423,7 @@ function displayAQI(data) {
 // ══════════════════════════════════════════════════════════════
 async function fetch7DayForecast(lat, lon) {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,windspeed_10m_max&timezone=auto&forecast_days=7`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weathercode,windspeed_10m_max&timezone=auto&forecast_days=7`;
     const res = await fetch(url);
     if (!res.ok) return null;
     return res.json();
@@ -463,40 +463,81 @@ function display7DayForecast(data) {
   }
   panel.style.display = '';
 
-  const daily    = data.daily;
-  const allMax   = daily.temperature_2m_max;
-  const allMin   = daily.temperature_2m_min;
-  const weekMin  = Math.min(...allMin);
-  const weekMax  = Math.max(...allMax);
-  const weekSpan = weekMax - weekMin || 1;
+  const WMO = {0:'01d',1:'01d',2:'02d',3:'03d',45:'50d',48:'50d',51:'09d',53:'09d',55:'09d',
+               61:'10d',63:'10d',65:'10d',66:'13d',67:'13d',71:'13d',73:'13d',75:'13d',
+               77:'13d',80:'09d',81:'09d',82:'09d',95:'11d',96:'11d',99:'11d'};
+  const WMO_DESC = {0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
+                    45:'Fog',48:'Icy fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',
+                    61:'Light rain',63:'Rain',65:'Heavy rain',71:'Light snow',73:'Snow',
+                    75:'Heavy snow',80:'Rain showers',81:'Showers',82:'Heavy showers',
+                    95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'};
+  const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const tc = v => currentUnit === 'C' ? Math.round(v) : Math.round(v * 9/5 + 32);
 
-  rows.innerHTML = daily.time.map((dateStr, i) => {
+  rows.innerHTML = data.daily.time.map((dateStr, i) => {
     const d        = new Date(dateStr + 'T12:00:00Z');
-    const dayName  = d.toLocaleDateString('en-US', { weekday: 'short',  timeZone: 'UTC' });
-    const dateLabel= d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    const code     = daily.weathercode[i];
-    const icon     = wmoToIcon(code);
-    const desc     = wmoToDesc(code);
-    const maxT     = allMax[i];
-    const minT     = allMin[i];
-    const rain     = daily.precipitation_probability_max[i] ?? 0;
-    const leftPct  = ((minT - weekMin) / weekSpan * 100).toFixed(1);
-    const rightPct = (100 - (maxT - weekMin) / weekSpan * 100).toFixed(1);
+    const dayLabel = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : DAYS[d.getUTCDay()];
+    const dateLabel= `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+    const code     = data.daily.weathercode[i];
+    const icon     = WMO[code] || '03d';
+    const desc     = WMO_DESC[code] || 'Mixed';
+    const maxT     = tc(data.daily.temperature_2m_max[i]);
+    const minT     = tc(data.daily.temperature_2m_min[i]);
+    const rain     = data.daily.precipitation_probability_max?.[i] ?? 0;
+    const wind     = Math.round(data.daily.windspeed_10m_max?.[i] || 0);
+    const precip   = (data.daily.precipitation_sum?.[i] || 0).toFixed(1);
+    const isGood   = rain < 30 && data.daily.temperature_2m_max[i] > 8;
 
-    return `<div class="fc-row">
-      <div class="fc-day-name">${dayName}<small>${dateLabel}</small></div>
-      <img class="fc-row-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${desc}" loading="lazy">
-      <div class="fc-row-cond">${desc}</div>
-      <div class="fc-rain-prob"><i class="fas fa-droplet"></i>${rain}%</div>
-      <div class="fc-temp-range">
-        <span class="fc-low">${tc(minT)}°</span>
-        <div class="fc-bar-wrap"><div class="fc-bar-fill" style="left:${leftPct}%;right:${rightPct}%"></div></div>
-        <span class="fc-high">${tc(maxT)}°</span>
+    return `<div class="fc7-wrap" id="fc7wrap${i}">
+      <div class="fc7-row" onclick="toggleDay7(${i})" role="button">
+        <div class="fc7-left">
+          <div class="fc7-day">${dayLabel}</div>
+          <div class="fc7-date">${dateLabel}</div>
+        </div>
+        <img class="fc7-icon" src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${desc}" loading="lazy">
+        <div class="fc7-desc">${desc}</div>
+        <div class="fc7-rain"><i class="fas fa-droplet"></i> ${rain}%</div>
+        <div class="fc7-temps">
+          <span class="fc7-high">${maxT}°</span>
+          <div class="fc7-bar"><div class="fc7-bar-fill" style="left:10%;right:10%"></div></div>
+          <span class="fc7-low">${minT}°</span>
+        </div>
+        <i class="fas fa-chevron-down fc7-chevron" id="fc7chev${i}"></i>
+      </div>
+      <div class="fc7-details" id="fc7det${i}">
+        <div class="fc7-det-grid">
+          <div class="fc7-det-item"><i class="fas fa-temperature-high"></i><span>High</span><strong>${maxT}°${currentUnit}</strong></div>
+          <div class="fc7-det-item"><i class="fas fa-temperature-low"></i><span>Low</span><strong>${minT}°${currentUnit}</strong></div>
+          <div class="fc7-det-item"><i class="fas fa-wind"></i><span>Wind</span><strong>${wind} km/h</strong></div>
+          <div class="fc7-det-item"><i class="fas fa-droplet"></i><span>Rain chance</span><strong>${rain}%</strong></div>
+          <div class="fc7-det-item"><i class="fas fa-cloud-rain"></i><span>Precipitation</span><strong>${precip} mm</strong></div>
+          <div class="fc7-det-item"><i class="fas fa-person-running"></i><span>Outdoor</span><strong style="color:${isGood?'#4ade80':'#fb923c'}">${isGood?'Good ✓':'Limited'}</strong></div>
+        </div>
       </div>
     </div>`;
   }).join('');
+
+  // Open Today by default
+  setTimeout(() => toggleDay7(0), 100);
 }
+
+window.toggleDay7 = function(i) {
+  const det  = document.getElementById('fc7det'  + i);
+  const chev = document.getElementById('fc7chev' + i);
+  const wrap = document.getElementById('fc7wrap' + i);
+  const isOpen = det?.classList.contains('open');
+
+  document.querySelectorAll('.fc7-details').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.fc7-chevron').forEach(c => c.classList.remove('rotated'));
+  document.querySelectorAll('.fc7-wrap').forEach(w => w.classList.remove('active'));
+
+  if (!isOpen && det) {
+    det.classList.add('open');
+    if (chev) chev.classList.add('rotated');
+    if (wrap) wrap.classList.add('active');
+  }
+};
 
 // ══════════════════════════════════════════════════════════════
 // OUTDOOR ACTIVITY SCORE
@@ -566,11 +607,12 @@ function displayOutdoorScore(score) {
 // HOURLY FORECAST  (horizontal scroll)
 // ══════════════════════════════════════════════════════════════
 function displayHourly(forecastData, timezone) {
-  const track  = $('hourlyTrack');
-  const panel  = $('hourly');
-  if (!forecastData?.list?.length) { panel.style.display = 'none'; return; }
+  const track = $('hourlyTrack');
+  const panel = $('hourly');
+  if (!forecastData?.list?.length || !track) { if (panel) panel.style.display = 'none'; return; }
   panel.style.display = '';
 
+  // Show 8 slots (8 × 3h = 24 hours)
   const items = forecastData.list.slice(0, 8);
   track.innerHTML = items.map((item, i) => {
     const d         = new Date((item.dt + timezone) * 1000);
@@ -1466,52 +1508,52 @@ function calcDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function fetchNearbyPlaces(lat, lon, category) {
-  const radius = 2000;
-  const tagQueries = {
-    restaurants: 'node["amenity"~"restaurant|cafe|fast_food"]',
-    sports:      'node["leisure"~"sports_centre|stadium|pitch"]',
-    fitness:     'node["leisure"~"fitness_centre|gym|swimming_pool"]',
-    health:      'node["amenity"~"hospital|pharmacy|clinic|doctors"]',
-    shopping:    'node["shop"~"mall|supermarket|clothes|bakery"]',
-    hotels:      'node["tourism"~"hotel|hostel|guest_house"]',
-    attractions: 'node["tourism"~"attraction|museum|gallery"]',
-    cafes:       'node["amenity"~"cafe|bar|pub"]',
-    parks:       'node["leisure"~"park|garden"]'
+  const radius = 3000;
+  const tagMap = {
+    restaurants: '["amenity"~"restaurant|fast_food|food_court"]',
+    sports:      '["leisure"~"sports_centre|stadium|pitch|sports_hall"]',
+    fitness:     '["leisure"~"fitness_centre|gym|swimming_pool"]',
+    health:      '["amenity"~"hospital|pharmacy|clinic|doctors|dentist"]',
+    shopping:    '["shop"~"mall|supermarket|department_store|clothes|bakery"]',
+    hotels:      '["tourism"~"hotel|hostel|guest_house|motel"]',
+    attractions: '["tourism"~"attraction|museum|gallery|viewpoint"]',
+    cafes:       '["amenity"~"cafe|bar|pub"]',
+    parks:       '["leisure"~"park|garden|nature_reserve"]'
   };
-
-  const query = `[out:json][timeout:10];
-${tagQueries[category] || tagQueries.restaurants}(around:${radius},${lat},${lon});
-out body 8;`;
+  const tag   = tagMap[category] || '["amenity"="restaurant"]';
+  const query = `[out:json][timeout:15];(node${tag}(around:${radius},${lat},${lon});way${tag}(around:${radius},${lat},${lon}););out center 10;`;
 
   try {
     const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), 12000);
-    const res  = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body:   'data=' + encodeURIComponent(query),
-      signal: ctrl.signal
+    setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    'data=' + encodeURIComponent(query),
+      signal:  ctrl.signal
     });
-    clearTimeout(tid);
     if (!res.ok) return [];
     const data = await res.json();
     return data.elements
       .filter(el => el.tags?.name)
       .slice(0, 8)
-      .map(el => ({
-        name:     el.tags.name,
-        type:     el.tags.amenity || el.tags.leisure || el.tags.tourism || el.tags.shop || '',
-        address:  el.tags['addr:street']
-                    ? `${el.tags['addr:street']} ${el.tags['addr:housenumber'] || ''}`.trim()
-                    : '',
-        phone:    el.tags.phone || el.tags['contact:phone'] || '',
-        website:  el.tags.website || el.tags['contact:website'] || '',
-        hours:    el.tags.opening_hours || '',
-        lat:      el.lat,
-        lon:      el.lon,
-        distance: calcDistance(lat, lon, el.lat, el.lon)
-      }))
+      .map(el => {
+        const elLat = el.lat ?? el.center?.lat;
+        const elLon = el.lon ?? el.center?.lon;
+        return {
+          name:     el.tags.name,
+          type:     (el.tags.amenity || el.tags.leisure || el.tags.tourism || el.tags.shop || category).replace(/_/g, ' '),
+          address:  [el.tags['addr:street'], el.tags['addr:housenumber']].filter(Boolean).join(' '),
+          phone:    el.tags.phone    || el.tags['contact:phone']   || '',
+          website:  el.tags.website  || el.tags['contact:website'] || '',
+          hours:    el.tags.opening_hours || '',
+          cuisine:  el.tags.cuisine || '',
+          lat: elLat, lon: elLon,
+          distance: elLat && elLon ? calcDistance(lat, lon, elLat, elLon) : 9999
+        };
+      })
       .sort((a, b) => a.distance - b.distance);
-  } catch(_) { return []; }
+  } catch(e) { console.error('Places error:', e); return []; }
 }
 
 async function loadDiscover(weatherData) {
@@ -1618,44 +1660,46 @@ function renderPlaces(places) {
   const grid = $('placesGrid');
   if (!grid) return;
 
-  // Clear old map markers
   discoverMarkers.forEach(m => { try { discoverMap?.removeLayer(m); } catch(_){} });
   discoverMarkers = [];
 
   if (!places.length) {
-    grid.innerHTML = '<div class="places-empty"><i class="fas fa-search"></i> No places found nearby. Try a larger city!</div>';
+    grid.innerHTML = '<div class="places-empty"><i class="fas fa-map-marker-alt"></i><p>No places found nearby.<br><small>Try a larger city.</small></p></div>';
     return;
   }
 
   grid.innerHTML = places.map(p => `
-    <div class="place-card" onclick="focusPlace(${p.lat},${p.lon},'${escAttr(p.name)}')">
-      <div class="place-name">${escHtml(p.name)}</div>
-      <div class="place-type">${escHtml(p.type)}</div>
-      <div class="place-info">
-        ${p.address ? `<div><i class="fas fa-location-dot"></i>${escHtml(p.address)}</div>` : ''}
-        ${p.hours   ? `<div><i class="fas fa-clock"></i>${escHtml(p.hours.slice(0,35))}</div>` : ''}
-        ${p.phone   ? `<div><i class="fas fa-phone"></i>${escHtml(p.phone)}</div>` : ''}
-        ${p.website ? `<div><i class="fas fa-globe"></i><a href="${escAttr(p.website)}" target="_blank" rel="noopener" style="color:#38bdf8">Website</a></div>` : ''}
+    <div class="place-card" onclick="focusPlace(${p.lat||0},${p.lon||0},'${escAttr(p.name)}')">
+      <div class="place-card-top">
+        <div class="place-name">${escHtml(p.name)}</div>
+        <span class="place-badge">${escHtml(p.type)}</span>
       </div>
-      <span class="place-dist">${p.distance < 1000 ? p.distance + 'm' : (p.distance/1000).toFixed(1) + 'km'} away</span>
+      ${p.cuisine ? `<div class="place-cuisine">🍴 ${escHtml(p.cuisine)}</div>` : ''}
+      <div class="place-info">
+        ${p.address ? `<div><i class="fas fa-location-dot"></i> ${escHtml(p.address)}</div>` : ''}
+        ${p.hours   ? `<div><i class="fas fa-clock"></i> ${escHtml(p.hours.slice(0,35))}</div>` : ''}
+        ${p.phone   ? `<a href="tel:${escAttr(p.phone)}" onclick="event.stopPropagation()"><i class="fas fa-phone"></i> ${escHtml(p.phone)}</a>` : ''}
+        ${p.website ? `<div><i class="fas fa-globe"></i> <a href="${escAttr(p.website)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#38bdf8">Website</a></div>` : ''}
+      </div>
+      <div class="place-footer">
+        <span class="place-dist"><i class="fas fa-route"></i> ${p.distance < 1000 ? p.distance+'m' : (p.distance/1000).toFixed(1)+'km'} away</span>
+        ${p.lat && p.lon ? `<a href="https://www.openstreetmap.org/directions?to=${p.lat},${p.lon}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="place-directions"><i class="fas fa-diamond-turn-right"></i> Directions</a>` : ''}
+      </div>
     </div>`).join('');
 
-  // Add markers to map
   if (discoverMap) {
     places.forEach(p => {
       if (!p.lat || !p.lon) return;
       try {
-        const m = L.marker([p.lat, p.lon])
-          .addTo(discoverMap)
+        const m = L.marker([p.lat, p.lon]).addTo(discoverMap)
           .bindPopup(`<b>${p.name}</b>${p.address ? '<br>' + p.address : ''}`);
         discoverMarkers.push(m);
       } catch(_) {}
     });
-
-    const validPlaces = places.filter(p => p.lat && p.lon);
-    if (validPlaces.length > 0) {
+    const valid = places.filter(p => p.lat && p.lon);
+    if (valid.length) {
       try {
-        const bounds = L.latLngBounds(validPlaces.map(p => [p.lat, p.lon]));
+        const bounds = L.latLngBounds(valid.map(p => [p.lat, p.lon]));
         if (bounds.isValid()) discoverMap.fitBounds(bounds, { padding: [30, 30] });
       } catch(_) {}
     }
