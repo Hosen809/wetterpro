@@ -39,13 +39,17 @@ let discoverPlacesCache = {};
 let sessionSearches    = []; // session-only recent searches — cleared on page refresh
 
 // ── Radar Globals ─────────────────────────────────────────────
-let radarMap       = null;
-let radarLayers    = [];
-let radarFrames    = [];
-let radarFrameIdx  = 0;
-let radarPlaying   = false;
-let radarAnimTimer = null;
-let radarInitDone  = false;
+let radarMap        = null;
+let radarLayers     = [];
+let radarFrames     = [];
+let radarFrameIdx   = 0;
+let radarPlaying    = false;
+let radarAnimTimer  = null;
+let radarInitDone   = false;
+let radarPastCount  = 0;
+
+// ── 7-day forecast cache (for unit switching) ─────────────────
+let sevenDayData = null;
 
 // ── DOM helper ────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -264,7 +268,9 @@ function displayHero(data) {
   $('heroCity').textContent = `${name}, ${sys.country}`;
   $('heroTemp').textContent = `${Math.round(currentUnit === 'C' ? main.temp : main.temp * 9/5 + 32)}°`;
   $('heroCond').textContent  = weather[0].description;
-  $('heroFeels').textContent = `Feels like ${Math.round(main.feels_like)}°C`;
+  $('heroFeels').textContent = currentUnit === 'C'
+    ? `Feels like ${Math.round(main.feels_like)}°C`
+    : `Feels like ${Math.round(main.feels_like * 9/5 + 32)}°F`;
 
   const iconEl  = $('heroIcon');
   iconEl.src    = `https://openweathermap.org/img/wn/${icon}@2x.png`;
@@ -298,8 +304,12 @@ function displayCurrentWeather(data) {
   $('fahrenheitBtn').classList.toggle('active', currentUnit === 'F');
 
   $('detailCond').textContent   = weather[0].description;
-  $('detailFeels').textContent  = `Feels like ${toC(main.feels_like)}°C`;
-  $('detailHL').textContent     = `H: ${Math.round(main.temp_max)}° · L: ${Math.round(main.temp_min)}°`;
+  $('detailFeels').textContent  = currentUnit === 'C'
+    ? `Feels like ${toC(main.feels_like)}°C`
+    : `Feels like ${toF(main.feels_like)}°F`;
+  $('detailHL').textContent     = currentUnit === 'C'
+    ? `H: ${Math.round(main.temp_max)}° · L: ${Math.round(main.temp_min)}°`
+    : `H: ${Math.round(main.temp_max * 9/5 + 32)}° · L: ${Math.round(main.temp_min * 9/5 + 32)}°`;
 
   $('dHumidity').textContent   = `${main.humidity}%`;
   $('dWind').textContent       = `${(wind.speed * 3.6).toFixed(1)} km/h`;
@@ -439,31 +449,6 @@ async function fetch7DayForecast(lat, lon) {
     if (!res.ok) return null;
     return res.json();
   } catch(_) { return null; }
-}
-
-function wmoToIcon(code) {
-  if (code === 0)                                  return '01d';
-  if ([1,2,3].includes(code))                      return '03d';
-  if ([45,48].includes(code))                      return '50d';
-  if ([51,53,55,61,63,65,80,81,82].includes(code)) return '10d';
-  if ([66,67,71,73,75,77,85,86].includes(code))    return '13d';
-  if ([95,96,99].includes(code))                   return '11d';
-  return '03d';
-}
-
-function wmoToDesc(code) {
-  if (code === 0)                      return 'Clear sky';
-  if (code === 1)                      return 'Mainly clear';
-  if (code === 2)                      return 'Partly cloudy';
-  if (code === 3)                      return 'Overcast';
-  if ([45,48].includes(code))          return 'Fog';
-  if ([51,53,55].includes(code))       return 'Drizzle';
-  if ([61,63,65].includes(code))       return 'Rain';
-  if ([80,81,82].includes(code))       return 'Rain showers';
-  if ([71,73,75,77].includes(code))    return 'Snow';
-  if ([85,86].includes(code))          return 'Snow showers';
-  if ([95,96,99].includes(code))       return 'Thunderstorm';
-  return 'Mixed conditions';
 }
 
 function display7DayForecast(data) {
@@ -747,8 +732,6 @@ function renderTempChart(forecastData, timezone) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 5-DAY FORECAST
-// ══════════════════════════════════════════════════════════════
 // UNIT TOGGLE (°C / °F)
 // ══════════════════════════════════════════════════════════════
 function switchUnit(unit) {
@@ -763,6 +746,7 @@ function switchUnit(unit) {
     displayHourly(forecast, weather.timezone);
     renderTempChart(forecast, weather.timezone);
   }
+  if (sevenDayData) display7DayForecast(sevenDayData);
 }
 window.switchUnit = switchUnit;
 
@@ -862,6 +846,7 @@ async function triggerSearch(city) {
 
   lastCity      = city;
   radarInitDone = false; // reset radar so it re-inits for new location
+  sevenDayData  = null;  // clear stale 7-day cache
   syncInputs(city);
   showSkeleton();
   $('scrollHint').classList.add('hidden');
@@ -900,7 +885,7 @@ async function triggerSearch(city) {
       weatherData._aqi = aqiData?.list?.[0]?.main?.aqi;
       displayAQI(aqiData);
     });
-    fetch7DayForecast(coord.lat, coord.lon).then(d7 => display7DayForecast(d7));
+    fetch7DayForecast(coord.lat, coord.lon).then(d7 => { sevenDayData = d7; display7DayForecast(d7); });
 
     // News section (non-blocking)
     if ($('newsCity')) $('newsCity').textContent = weatherData.name;
@@ -994,6 +979,8 @@ function handleGeoLocation() {
 
         currentWeatherData = { weather: weatherData, forecast: forecastData };
         lastCity           = weatherData.name;
+        radarInitDone      = false;
+        sevenDayData       = null;
         syncInputs(weatherData.name);
 
         displayHero(weatherData);
@@ -1015,7 +1002,7 @@ function handleGeoLocation() {
           weatherData._aqi = aqiData?.list?.[0]?.main?.aqi;
           displayAQI(aqiData);
         });
-        fetch7DayForecast(weatherData.coord.lat, weatherData.coord.lon).then(d7 => display7DayForecast(d7));
+        fetch7DayForecast(weatherData.coord.lat, weatherData.coord.lon).then(d7 => { sevenDayData = d7; display7DayForecast(d7); });
 
         // News section
         if ($('newsCity')) $('newsCity').textContent = weatherData.name;
@@ -2127,6 +2114,7 @@ async function loadRadarFrames() {
     const past    = (data.radar?.past    || []).slice(-6);
     const nowcast = (data.radar?.nowcast || []).slice(0, 2);
     radarFrames   = [...past, ...nowcast];
+    radarPastCount = past.length;
 
     radarLayers.forEach(l => { try { radarMap.removeLayer(l); } catch(_) {} });
     radarLayers = [];
@@ -2170,11 +2158,10 @@ window.showRadarFrame = function(idx) {
 function renderRadarTimeline() {
   const tl = $('radarTimeline');
   if (!tl || !radarFrames.length) return;
-  const pastLen = radarFrames.filter(f => !f.nowcast).length;
   tl.innerHTML = radarFrames.map((frame, i) => {
     const d    = new Date(frame.time * 1000);
     const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const label = i >= pastLen ? `${time} ▶` : time;
+    const label = i >= radarPastCount ? `${time} ▶` : time;
     return `<button class="radar-frame-btn${i === radarFrameIdx ? ' active' : ''}" onclick="showRadarFrame(${i})">${label}</button>`;
   }).join('');
 }
