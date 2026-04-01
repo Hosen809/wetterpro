@@ -240,6 +240,9 @@ function showContent() {
   $('stateError').classList.remove('active');
   $('stateOffline').classList.remove('active');
   $('contentPanels').classList.add('active');
+  // Only show recent searches if there are any from this session
+  const rw = $('recentWrap');
+  if (rw) rw.style.display = sessionSearches.length > 0 ? 'block' : 'none';
   setTimeout(initContentAnimations, 80);
 }
 
@@ -822,9 +825,11 @@ function renderRecent() {
   if (!wrap || !chips) return;
   // Only show after a search, never on page load
   if (!sessionSearches.length || !$('contentPanels').classList.contains('active')) {
+    wrap.style.display = 'none';
     wrap.classList.remove('active');
     return;
   }
+  wrap.style.display = 'block';
   wrap.classList.add('active');
   chips.innerHTML = sessionSearches.map(s => `
     <button class="recent-chip" onclick="triggerSearch('${s.city.replace(/'/g,"\\'")}')">
@@ -885,6 +890,7 @@ async function triggerSearch(city) {
     displayHourly(forecastData, weatherData.timezone);
     renderTempChart(forecastData, weatherData.timezone);
     showContent();
+    updateCityButtons(weatherData.sys?.country);
     loadDiscover(weatherData);
     generateAITips(weatherData);
 
@@ -929,6 +935,40 @@ function syncInputs(city) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// SMART CITY QUICK BUTTONS
+// ══════════════════════════════════════════════════════════════
+const COUNTRY_CITIES = {
+  DE: ['Berlin','Hamburg','Munich','Frankfurt','Cologne','Stuttgart','Düsseldorf','Leipzig','Dresden','Raunheim'],
+  BD: ['Dhaka','Chittagong','Sylhet','Rajshahi','Khulna','Comilla','Barisal','Rangpur'],
+  GB: ['London','Manchester','Birmingham','Glasgow','Liverpool','Leeds','Bristol','Edinburgh'],
+  FR: ['Paris','Lyon','Marseille','Toulouse','Nice','Nantes','Strasbourg','Bordeaux'],
+  IN: ['Mumbai','Delhi','Bangalore','Hyderabad','Chennai','Kolkata','Pune','Ahmedabad'],
+  TR: ['Istanbul','Ankara','Izmir','Bursa','Antalya','Adana','Konya','Gaziantep'],
+  IT: ['Rome','Milan','Naples','Turin','Palermo','Genoa','Bologna','Florence'],
+  ES: ['Madrid','Barcelona','Valencia','Seville','Zaragoza','Malaga','Murcia','Bilbao'],
+  PL: ['Warsaw','Krakow','Lodz','Wroclaw','Poznan','Gdansk','Szczecin','Bydgoszcz'],
+  NL: ['Amsterdam','Rotterdam','The Hague','Utrecht','Eindhoven','Groningen','Tilburg'],
+  PK: ['Karachi','Lahore','Islamabad','Faisalabad','Rawalpindi','Multan','Peshawar'],
+  NG: ['Lagos','Abuja','Kano','Ibadan','Port Harcourt','Kaduna','Benin City'],
+  EG: ['Cairo','Alexandria','Giza','Shubra','Port Said','Suez','Mansoura'],
+  BR: ['São Paulo','Rio de Janeiro','Brasília','Salvador','Fortaleza','Belo Horizonte'],
+  US: ['New York','Los Angeles','Chicago','Houston','Phoenix','Philadelphia','San Antonio','San Diego'],
+  AU: ['Sydney','Melbourne','Brisbane','Perth','Adelaide','Canberra','Darwin','Hobart'],
+  CA: ['Toronto','Vancouver','Montreal','Calgary','Ottawa','Edmonton','Winnipeg','Quebec City'],
+  JP: ['Tokyo','Osaka','Yokohama','Nagoya','Sapporo','Fukuoka','Kobe','Kyoto'],
+  DEFAULT: ['Frankfurt','Berlin','Hamburg','Munich','Cologne','Stuttgart','Leipzig','Dresden']
+};
+
+function updateCityButtons(countryCode) {
+  const cities    = COUNTRY_CITIES[countryCode] || COUNTRY_CITIES['DEFAULT'];
+  const container = document.querySelector('.quick-cities') || document.getElementById('quickCities');
+  if (!container) return;
+  container.innerHTML = cities.slice(0, 8).map(city =>
+    `<button class="qc-btn" onclick="triggerSearch('${city}')">${city}</button>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
 // GEOLOCATION  – "Use My Location"
 // ══════════════════════════════════════════════════════════════
 function handleGeoLocation() {
@@ -967,6 +1007,7 @@ function handleGeoLocation() {
         displayHourly(forecastData, weatherData.timezone);
         renderTempChart(forecastData, weatherData.timezone);
         showContent();
+        updateCityButtons(weatherData.sys?.country);
         loadDiscover(weatherData);
         generateAITips(weatherData);
 
@@ -1508,24 +1549,24 @@ function calcDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function fetchNearbyPlaces(lat, lon, category) {
-  const radius = 3000;
+  const radius = 5000;
   const tagMap = {
-    restaurants: '["amenity"~"restaurant|fast_food|food_court"]',
-    sports:      '["leisure"~"sports_centre|stadium|pitch|sports_hall"]',
+    restaurants: '["amenity"~"restaurant|fast_food"]',
+    sports:      '["leisure"~"sports_centre|stadium|pitch"]',
     fitness:     '["leisure"~"fitness_centre|gym|swimming_pool"]',
-    health:      '["amenity"~"hospital|pharmacy|clinic|doctors|dentist"]',
-    shopping:    '["shop"~"mall|supermarket|department_store|clothes|bakery"]',
-    hotels:      '["tourism"~"hotel|hostel|guest_house|motel"]',
-    attractions: '["tourism"~"attraction|museum|gallery|viewpoint"]',
+    health:      '["amenity"~"hospital|pharmacy|clinic|doctors"]',
+    shopping:    '["shop"~"supermarket|mall|clothes|bakery"]',
+    hotels:      '["tourism"~"hotel|hostel|guest_house"]',
+    attractions: '["tourism"~"attraction|museum|gallery"]',
     cafes:       '["amenity"~"cafe|bar|pub"]',
-    parks:       '["leisure"~"park|garden|nature_reserve"]'
+    parks:       '["leisure"~"park|garden"]'
   };
-  const tag   = tagMap[category] || '["amenity"="restaurant"]';
-  const query = `[out:json][timeout:15];(node${tag}(around:${radius},${lat},${lon});way${tag}(around:${radius},${lat},${lon}););out center 10;`;
+  const tag   = tagMap[category] || '["amenity"~"restaurant|cafe"]';
+  const query = `[out:json][timeout:20];(node${tag}(around:${radius},${lat},${lon});way${tag}(around:${radius},${lat},${lon}););out center tags 12;`;
 
   try {
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 12000);
+    setTimeout(() => ctrl.abort(), 18000);
     const res = await fetch('https://overpass-api.de/api/interpreter', {
       method:  'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1535,11 +1576,11 @@ async function fetchNearbyPlaces(lat, lon, category) {
     if (!res.ok) return [];
     const data = await res.json();
     return data.elements
-      .filter(el => el.tags?.name)
-      .slice(0, 8)
+      .filter(el => el.tags && el.tags.name)
       .map(el => {
-        const elLat = el.lat ?? el.center?.lat;
-        const elLon = el.lon ?? el.center?.lon;
+        const elLat = el.lat || el.center?.lat;
+        const elLon = el.lon || el.center?.lon;
+        const dist  = elLat && elLon ? calcDistance(lat, lon, elLat, elLon) : 9999;
         return {
           name:     el.tags.name,
           type:     (el.tags.amenity || el.tags.leisure || el.tags.tourism || el.tags.shop || category).replace(/_/g, ' '),
@@ -1548,11 +1589,12 @@ async function fetchNearbyPlaces(lat, lon, category) {
           website:  el.tags.website  || el.tags['contact:website'] || '',
           hours:    el.tags.opening_hours || '',
           cuisine:  el.tags.cuisine || '',
-          lat: elLat, lon: elLon,
-          distance: elLat && elLon ? calcDistance(lat, lon, elLat, elLon) : 9999
+          lat: elLat, lon: elLon, distance: dist
         };
       })
-      .sort((a, b) => a.distance - b.distance);
+      .filter(p => p.distance < 5000)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 8);
   } catch(e) { console.error('Places error:', e); return []; }
 }
 
@@ -1657,50 +1699,64 @@ window.switchDiscoverTab = async function(category, btn) {
 };
 
 function renderPlaces(places) {
-  const grid = $('placesGrid');
+  const grid    = $('placesGrid');
+  const loading = $('placesLoading');
+  if (loading) loading.style.display = 'none';
   if (!grid) return;
 
   discoverMarkers.forEach(m => { try { discoverMap?.removeLayer(m); } catch(_){} });
   discoverMarkers = [];
 
-  if (!places.length) {
-    grid.innerHTML = '<div class="places-empty"><i class="fas fa-map-marker-alt"></i><p>No places found nearby.<br><small>Try a larger city.</small></p></div>';
+  if (!places || !places.length) {
+    grid.innerHTML = `<div class="places-empty" style="grid-column:span 2;text-align:center;padding:32px;color:var(--text-dim)">
+      <i class="fas fa-map-marker-alt" style="font-size:2rem;color:rgba(14,165,233,.3);display:block;margin-bottom:12px"></i>
+      <p>No places found nearby.<br><small>Try a larger city or different category.</small></p>
+    </div>`;
     return;
   }
 
-  grid.innerHTML = places.map(p => `
-    <div class="place-card" onclick="focusPlace(${p.lat||0},${p.lon||0},'${escAttr(p.name)}')">
+  grid.innerHTML = places.map(p => {
+    const distStr  = p.distance < 1000 ? Math.round(p.distance) + 'm' : (p.distance / 1000).toFixed(1) + 'km';
+    const mapsUrl  = p.lat && p.lon ? `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}` : '#';
+    const dirUrl   = p.lat && p.lon ? `https://www.openstreetmap.org/directions?to=${p.lat},${p.lon}` : '#';
+    const cuisineDisplay = p.cuisine ? p.cuisine.split(';')[0] : '';
+    return `<div class="place-card" onclick="focusPlace(${p.lat||0},${p.lon||0},'${escAttr(p.name)}')">
       <div class="place-card-top">
         <div class="place-name">${escHtml(p.name)}</div>
         <span class="place-badge">${escHtml(p.type)}</span>
       </div>
-      ${p.cuisine ? `<div class="place-cuisine">🍴 ${escHtml(p.cuisine)}</div>` : ''}
+      ${cuisineDisplay ? `<div class="place-cuisine">🍴 ${escHtml(cuisineDisplay)}</div>` : ''}
       <div class="place-info">
         ${p.address ? `<div><i class="fas fa-location-dot"></i> ${escHtml(p.address)}</div>` : ''}
-        ${p.hours   ? `<div><i class="fas fa-clock"></i> ${escHtml(p.hours.slice(0,35))}</div>` : ''}
-        ${p.phone   ? `<a href="tel:${escAttr(p.phone)}" onclick="event.stopPropagation()"><i class="fas fa-phone"></i> ${escHtml(p.phone)}</a>` : ''}
+        ${p.hours   ? `<div><i class="fas fa-clock"></i> ${escHtml(p.hours.slice(0, 40))}</div>` : ''}
+        ${p.phone   ? `<div><a href="tel:${escAttr(p.phone)}" onclick="event.stopPropagation()"><i class="fas fa-phone"></i> ${escHtml(p.phone)}</a></div>` : ''}
         ${p.website ? `<div><i class="fas fa-globe"></i> <a href="${escAttr(p.website)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#38bdf8">Website</a></div>` : ''}
       </div>
       <div class="place-footer">
-        <span class="place-dist"><i class="fas fa-route"></i> ${p.distance < 1000 ? p.distance+'m' : (p.distance/1000).toFixed(1)+'km'} away</span>
-        ${p.lat && p.lon ? `<a href="https://www.openstreetmap.org/directions?to=${p.lat},${p.lon}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="place-directions"><i class="fas fa-diamond-turn-right"></i> Directions</a>` : ''}
+        <span class="place-dist"><i class="fas fa-route"></i> ${distStr} away</span>
+        <div style="display:flex;gap:6px">
+          <a href="${mapsUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="place-directions" style="background:rgba(255,255,255,.06)"><i class="fas fa-map"></i></a>
+          <a href="${dirUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="place-directions"><i class="fas fa-diamond-turn-right"></i> Directions</a>
+        </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  places.forEach(p => {
+    if (!p.lat || !p.lon || !discoverMap) return;
+    try {
+      const popup = `<b>${p.name}</b>${p.address ? '<br>' + p.address : ''}${p.hours ? '<br><small>' + p.hours.slice(0, 30) + '</small>' : ''}`;
+      const m = L.marker([p.lat, p.lon]).addTo(discoverMap).bindPopup(popup);
+      discoverMarkers.push(m);
+    } catch(_) {}
+  });
 
   if (discoverMap) {
-    places.forEach(p => {
-      if (!p.lat || !p.lon) return;
-      try {
-        const m = L.marker([p.lat, p.lon]).addTo(discoverMap)
-          .bindPopup(`<b>${p.name}</b>${p.address ? '<br>' + p.address : ''}`);
-        discoverMarkers.push(m);
-      } catch(_) {}
-    });
     const valid = places.filter(p => p.lat && p.lon);
     if (valid.length) {
       try {
         const bounds = L.latLngBounds(valid.map(p => [p.lat, p.lon]));
-        if (bounds.isValid()) discoverMap.fitBounds(bounds, { padding: [30, 30] });
+        if (bounds.isValid()) discoverMap.fitBounds(bounds, { padding: [40, 40] });
       } catch(_) {}
     }
   }

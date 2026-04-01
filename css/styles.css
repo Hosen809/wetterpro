@@ -1651,8 +1651,8 @@ img{display:block;max-width:100%}
 .fc7-bar-fill{position:absolute;top:0;bottom:0;background:linear-gradient(90deg,#60a5fa,#f97316);border-radius:10px}
 .fc7-chevron{color:var(--text-dim);font-size:.78rem;transition:transform .3s;flex-shrink:0;margin-left:4px}
 .fc7-chevron.rotated{transform:rotate(180deg);color:#38bdf8}
-.fc7-details{max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(0.4,0,0.2,1)}
-.fc7-details.open{max-height:200px}
+.fc7-details{max-height:0;overflow:hidden;opacity:0;transition:max-height .4s cubic-bezier(0.4,0,0.2,1),opacity .3s ease}
+.fc7-details.open{max-height:200px;opacity:1}
 .fc7-det-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 18px;background:rgba(14,165,233,.04);border-top:1px solid rgba(255,255,255,.06)}
 .fc7-det-item{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
 .fc7-det-item i{color:var(--sky-2);font-size:.85rem}
