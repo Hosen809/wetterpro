@@ -31,8 +31,7 @@ let tempChartInstance  = null;
 let currentWxState     = '';
 let clockInterval      = null;
 let cityClockInterval  = null;
-let discoverMap       = null;
-let discoverMarkers   = [];
+let discoverCity       = '';
 let currentDiscoverCat = 'restaurants';
 let discoverLat       = 0;
 let discoverLon       = 0;
@@ -904,12 +903,8 @@ async function triggerSearch(city) {
     fetch7DayForecast(coord.lat, coord.lon).then(d7 => display7DayForecast(d7));
 
     // News section (non-blocking)
-    $('newsCity').textContent     = weatherData.name;
-    $('newsSkel').style.display   = 'block';
-    $('newsGrid').innerHTML       = '';
-    $('newsMsg').style.display    = 'none';
-    fetchNews(weatherData.name, weatherData.sys?.country)
-      .then(articles => displayNews(articles, weatherData.name));
+    if ($('newsCity')) $('newsCity').textContent = weatherData.name;
+    fetchCityNews(weatherData.name, weatherData.sys?.country);
 
     // Recent searches
     addToSession(weatherData.name, weatherData.weather[0].icon);
@@ -1020,12 +1015,8 @@ function handleGeoLocation() {
         fetch7DayForecast(weatherData.coord.lat, weatherData.coord.lon).then(d7 => display7DayForecast(d7));
 
         // News section
-        $('newsCity').textContent     = weatherData.name;
-        $('newsSkel').style.display   = 'block';
-        $('newsGrid').innerHTML       = '';
-        $('newsMsg').style.display    = 'none';
-        fetchNews(weatherData.name, weatherData.sys?.country)
-          .then(articles => displayNews(articles, weatherData.name));
+        if ($('newsCity')) $('newsCity').textContent = weatherData.name;
+        fetchCityNews(weatherData.name, weatherData.sys?.country);
 
         addToSession(weatherData.name, weatherData.weather[0].icon);
         renderRecent();
@@ -1162,54 +1153,62 @@ function initContentAnimations() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// NEWS  (GNews.io – free tier, CORS-friendly)
+// NEWS  (GNews.io – free tier, CORS-friendly, with Wikipedia fallback)
 // ══════════════════════════════════════════════════════════════
-async function fetchNews(city, country) {
-  const key = (typeof CONFIG !== 'undefined') && CONFIG.NEWS_API_KEY;
-  if (!key || key.startsWith('YOUR_')) return null; // placeholder not replaced
-  const lang = country === 'DE' ? 'de' : 'en';
-  const url  = `https://gnews.io/api/v4/search?q=${encodeURIComponent(city)}&lang=${lang}&country=any&max=4&sortby=publishedAt&apikey=${key}`;
+async function fetchCityNews(city, country) {
+  const newsGrid = $('newsGrid');
+  const newsSkel = $('newsSkel');
+  const newsMsg  = $('newsMsg');
+  if (!newsGrid) return;
+  if (newsSkel) newsSkel.style.display = 'block';
+  if (newsMsg)  newsMsg.style.display  = 'none';
+  newsGrid.innerHTML = '';
+
+  // Try GNews
   try {
+    const lang = ['DE','AT','CH'].includes(country) ? 'de' : 'en';
+    const key  = CONFIG.NEWS_API_KEY;
+    const url  = `https://gnews.io/api/v4/search?q=${encodeURIComponent(city)}&lang=${lang}&country=any&max=4&sortby=publishedAt&apikey=${key}`;
     const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), 8000);
+    setTimeout(() => ctrl.abort(), 8000);
     const res  = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(tid);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data.articles) ? data.articles : null;
-  } catch (_) { return null; }
+    if (res.ok) {
+      const data = await res.json();
+      if (data.articles && data.articles.length > 0) {
+        if (newsSkel) newsSkel.style.display = 'none';
+        displayNewsArticles(data.articles, newsGrid);
+        return;
+      }
+    }
+  } catch(e) { console.log('GNews failed:', e.message); }
+
+  // Fallback: Wikipedia summary
+  try {
+    const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(city)}`);
+    if (wikiRes.ok) {
+      const data = await wikiRes.json();
+      if (newsSkel) newsSkel.style.display = 'none';
+      if (data.extract) {
+        const thumb = data.thumbnail ? `<div class="nc-img"><img src="${escAttr(data.thumbnail.source)}" alt="${escAttr(city)}" loading="lazy"></div>` : '';
+        const link  = data.content_urls?.desktop?.page || '#';
+        newsGrid.innerHTML = `<a class="news-card wiki-card" href="${escAttr(link)}" target="_blank" rel="noopener" style="grid-column:span 2">
+          ${thumb}
+          <div class="nc-body">
+            <h4 class="nc-title" style="font-size:1rem">📍 About ${escHtml(data.title || city)}</h4>
+            <p style="color:rgba(255,255,255,.65);font-size:.85rem;line-height:1.65;margin:8px 0">${escHtml(data.extract.slice(0, 300))}…</p>
+            <div class="nc-meta"><span class="nc-source">Wikipedia</span><span style="color:#38bdf8;font-size:.75rem">Read more →</span></div>
+          </div>
+        </a>`;
+        return;
+      }
+    }
+  } catch(e) {}
+
+  if (newsSkel) newsSkel.style.display = 'none';
+  newsGrid.innerHTML = '<p style="color:var(--text-dim);padding:20px;text-align:center">No news available for this city.</p>';
 }
 
-function displayNews(articles, city) {
-  const grid  = $('newsGrid');
-  const skel  = $('newsSkel');
-  const msgEl = $('newsMsg');
-  if (!grid || !skel || !msgEl) return;
-
-  if ($('newsCity')) $('newsCity').textContent = city || '—';
-  skel.style.display = 'none';
-
-  if (articles === null) {
-    // API key not configured
-    grid.innerHTML = '';
-    msgEl.innerHTML = `<div class="news-no-key">
-      <div class="nnk-icon"><i class="fas fa-newspaper"></i></div>
-      <p>To show local news, add your free <strong>GNews API key</strong> to <code>js/config.js</code> (<code>NEWS_API_KEY</code>).</p>
-      <a href="https://gnews.io" target="_blank" rel="noopener" class="btn-get-news-key">
-        <i class="fas fa-external-link-alt"></i>&nbsp;Get Free Key at gnews.io
-      </a>
-    </div>`;
-    msgEl.style.display = 'block';
-    return;
-  }
-
-  msgEl.style.display = 'none';
-
-  if (!articles.length) {
-    grid.innerHTML = '<p class="news-empty"><i class="fas fa-search"></i> No recent news found for this city.</p>';
-    return;
-  }
-
+function displayNewsArticles(articles, grid) {
   grid.innerHTML = articles.map(a => {
     const time    = getTimeAgo(new Date(a.publishedAt));
     const imgHtml = a.image
@@ -1227,6 +1226,7 @@ function displayNews(articles, city) {
     </a>`;
   }).join('');
 }
+
 
 function getTimeAgo(date) {
   const s = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -1603,6 +1603,7 @@ async function loadDiscover(weatherData) {
   const lat  = weatherData.coord.lat;
   const lon  = weatherData.coord.lon;
 
+  discoverCity         = city;
   discoverLat          = lat;
   discoverLon          = lon;
   discoverPlacesCache  = {};
@@ -1615,7 +1616,7 @@ async function loadDiscover(weatherData) {
   });
   currentDiscoverCat = 'restaurants';
 
-  initDiscoverMap(lat, lon, city);
+  updateDiscoverMap(city, 'restaurants');
   showWeatherTip(weatherData);
 
   // Pre-load default tab
@@ -1627,23 +1628,11 @@ async function loadDiscover(weatherData) {
   renderPlaces(places);
 }
 
-function initDiscoverMap(lat, lon, city) {
-  if (discoverMap) {
-    discoverMap.remove();
-    discoverMap    = null;
-    discoverMarkers = [];
-  }
-  try {
-    discoverMap = L.map('discoverMap', { zoomControl: true }).setView([lat, lon], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
-    }).addTo(discoverMap);
-    L.marker([lat, lon])
-      .addTo(discoverMap)
-      .bindPopup(`<b>${city}</b><br>City Center`)
-      .openPopup();
-  } catch(e) { console.warn('Map init failed:', e.message); }
+function updateDiscoverMap(city, category) {
+  const frame = $('discoverMapFrame');
+  if (!frame) return;
+  const q = encodeURIComponent(category + ' in ' + city);
+  frame.src = `https://www.google.com/maps/embed/v1/search?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&q=${q}&zoom=14`;
 }
 
 function showWeatherTip(weather) {
@@ -1683,6 +1672,8 @@ window.switchDiscoverTab = async function(category, btn) {
   if (btn) btn.classList.add('active');
   if (!discoverLat) return;
 
+  updateDiscoverMap(discoverCity || lastCity, category);
+
   if (discoverPlacesCache[category]) {
     renderPlaces(discoverPlacesCache[category]);
     return;
@@ -1704,9 +1695,6 @@ function renderPlaces(places) {
   if (loading) loading.style.display = 'none';
   if (!grid) return;
 
-  discoverMarkers.forEach(m => { try { discoverMap?.removeLayer(m); } catch(_){} });
-  discoverMarkers = [];
-
   if (!places || !places.length) {
     grid.innerHTML = `<div class="places-empty" style="grid-column:span 2;text-align:center;padding:32px;color:var(--text-dim)">
       <i class="fas fa-map-marker-alt" style="font-size:2rem;color:rgba(14,165,233,.3);display:block;margin-bottom:12px"></i>
@@ -1717,8 +1705,9 @@ function renderPlaces(places) {
 
   grid.innerHTML = places.map(p => {
     const distStr  = p.distance < 1000 ? Math.round(p.distance) + 'm' : (p.distance / 1000).toFixed(1) + 'km';
-    const mapsUrl  = p.lat && p.lon ? `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}` : '#';
-    const dirUrl   = p.lat && p.lon ? `https://www.openstreetmap.org/directions?to=${p.lat},${p.lon}` : '#';
+    const city     = discoverCity || lastCity || '';
+    const mapsUrl  = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + ' ' + city)}`;
+    const dirUrl   = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.name + ' ' + city)}`;
     const cuisineDisplay = p.cuisine ? p.cuisine.split(';')[0] : '';
     return `<div class="place-card" onclick="focusPlace(${p.lat||0},${p.lon||0},'${escAttr(p.name)}')">
       <div class="place-card-top">
@@ -1741,40 +1730,12 @@ function renderPlaces(places) {
       </div>
     </div>`;
   }).join('');
-
-  places.forEach(p => {
-    if (!p.lat || !p.lon || !discoverMap) return;
-    try {
-      const popup = `<b>${p.name}</b>${p.address ? '<br>' + p.address : ''}${p.hours ? '<br><small>' + p.hours.slice(0, 30) + '</small>' : ''}`;
-      const m = L.marker([p.lat, p.lon]).addTo(discoverMap).bindPopup(popup);
-      discoverMarkers.push(m);
-    } catch(_) {}
-  });
-
-  if (discoverMap) {
-    const valid = places.filter(p => p.lat && p.lon);
-    if (valid.length) {
-      try {
-        const bounds = L.latLngBounds(valid.map(p => [p.lat, p.lon]));
-        if (bounds.isValid()) discoverMap.fitBounds(bounds, { padding: [40, 40] });
-      } catch(_) {}
-    }
-  }
 }
 
 window.focusPlace = function(lat, lon, name) {
-  if (!discoverMap) return;
-  discoverMap.setView([lat, lon], 17);
-  discoverMarkers.forEach(m => {
-    try {
-      if (Math.abs(m.getLatLng().lat - lat) < 0.0001 &&
-          Math.abs(m.getLatLng().lng - lon) < 0.0001) {
-        m.openPopup();
-      }
-    } catch(_) {}
-  });
-  const mapEl = $('discoverMap');
-  if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const city = discoverCity || lastCity || '';
+  const q    = encodeURIComponent(name + ' ' + city);
+  window.open('https://www.google.com/maps/search/?api=1&query=' + q, '_blank');
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1941,15 +1902,9 @@ function init() {
   $('newsRefresh')?.addEventListener('click', () => {
     if (lastCity && currentWeatherData?.weather) {
       const w = currentWeatherData.weather;
-      $('newsSkel').style.display = 'block';
-      $('newsGrid').innerHTML     = '';
-      $('newsMsg').style.display  = 'none';
       const btn = $('newsRefresh');
       btn?.classList.add('spinning');
-      fetchNews(w.name, w.sys?.country).then(articles => {
-        btn?.classList.remove('spinning');
-        displayNews(articles, w.name);
-      });
+      fetchCityNews(w.name, w.sys?.country).then(() => btn?.classList.remove('spinning'));
     }
   });
 
