@@ -1805,3 +1805,97 @@ img{display:block;max-width:100%}
 @media(max-width:640px) {
   .health-grid,.act-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Radar Tab ──────────────────────────────────────────────── */
+.radar-panel {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.radar-map-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  height: 420px;
+  margin-top: 16px;
+  border: 1px solid rgba(255,255,255,.1);
+}
+#radarMap {
+  width: 100%;
+  height: 100%;
+  background: #0a1628;
+}
+.radar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.radar-btn {
+  background: rgba(14,165,233,.2);
+  border: 1px solid rgba(14,165,233,.3);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: .9rem;
+  transition: all .2s;
+}
+.radar-btn:hover { background: rgba(14,165,233,.35); }
+.radar-time { font-size: .85rem; color: rgba(255,255,255,.6); }
+.radar-timeline {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.radar-timeline::-webkit-scrollbar { display: none; }
+.radar-frame-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.5);
+  font-size: .72rem;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.radar-frame-btn:hover { background: rgba(14,165,233,.15); color: #fff; }
+.radar-frame-btn.active {
+  background: rgba(14,165,233,.25);
+  border-color: rgba(14,165,233,.4);
+  color: #fff;
+  font-weight: 600;
+}
+.radar-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.rl-label { font-size: .75rem; color: rgba(255,255,255,.5); }
+.rl-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #00e5ff, #00c853, #ffd600, #ff6d00, #d50000);
+}
+.radar-credit {
+  text-align: right;
+  font-size: .72rem;
+  color: rgba(255,255,255,.3);
+  margin-top: 8px;
+}
+.radar-credit a { color: rgba(14,165,233,.7); text-decoration: none; }
+.radar-credit a:hover { color: #38bdf8; }
+@media(max-width:640px) {
+  .radar-map-wrap { height: 280px; }
+}
+
+/* ── Hide recent searches permanently ───────────────────────── */
+#recentWrap, .recent-wrap { display: none !important; }

@@ -6,6 +6,7 @@
   <title>WeatherPro – The World's Best Weather Forecast</title>
   <meta name="description" content="Free professional weather service. Real-time forecasts, hourly trends, UV Index, wind compass. Zero ads. Faster than BBC Weather.">
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
@@ -290,6 +291,9 @@
         <button class="wxt" id="tab-news" onclick="showWxTab('news')">
           <i class="fas fa-newspaper"></i><span>News</span>
         </button>
+        <button class="wxt" id="tab-radar" onclick="showWxTab('radar')">
+          <i class="fas fa-satellite-dish"></i><span>Radar</span>
+        </button>
       </div>
 
       <!-- ═══ HOURLY TAB (default active) ═══ -->
@@ -527,8 +531,33 @@
         </section>
       </div><!-- /panel-news -->
 
+      <!-- ═══ RADAR TAB ═══ -->
+      <div class="wxt-panel" id="panel-radar">
+        <section class="radar-panel panel-appear">
+          <div class="panel-title-row">
+            <h2><i class="fas fa-satellite-dish"></i> Live Radar</h2>
+            <div class="radar-controls">
+              <button class="radar-btn" id="radarPlayBtn" onclick="toggleRadarPlay()">
+                <i class="fas fa-play" id="radarPlayIcon"></i>
+              </button>
+              <span class="radar-time" id="radarTimeLabel">—</span>
+            </div>
+          </div>
+          <div class="radar-map-wrap">
+            <div id="radarMap"></div>
+          </div>
+          <div class="radar-timeline" id="radarTimeline"></div>
+          <div class="radar-legend">
+            <span class="rl-label">Light</span>
+            <div class="rl-bar"></div>
+            <span class="rl-label">Heavy</span>
+          </div>
+          <p class="radar-credit">Radar data: <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a></p>
+        </section>
+      </div><!-- /panel-radar -->
+
       <!-- Recent searches (always visible after search) -->
-      <div class="recent-wrap" id="recentWrap">
+      <div class="recent-wrap" id="recentWrap" style="display:none!important">
         <h3><i class="fas fa-history"></i> Recent Searches</h3>
         <div class="recent-chips" id="recentChips"></div>
       </div>
@@ -645,6 +674,7 @@
 </footer>
 
 <!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="js/config.js"></script>

@@ -38,6 +38,15 @@ let discoverLon       = 0;
 let discoverPlacesCache = {};
 let sessionSearches    = []; // session-only recent searches — cleared on page refresh
 
+// ── Radar Globals ─────────────────────────────────────────────
+let radarMap       = null;
+let radarLayers    = [];
+let radarFrames    = [];
+let radarFrameIdx  = 0;
+let radarPlaying   = false;
+let radarAnimTimer = null;
+let radarInitDone  = false;
+
 // ── DOM helper ────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
@@ -214,7 +223,7 @@ function showSkeleton() {
   $('stateError').classList.remove('active');
   $('stateOffline').classList.remove('active');
   $('contentPanels').classList.remove('active');
-  $('recentWrap').classList.remove('active');
+  $('recentWrap').style.display = 'none';
   $('mainWrap').style.display = 'block';
 }
 
@@ -241,7 +250,7 @@ function showContent() {
   $('contentPanels').classList.add('active');
   // Only show recent searches if there are any from this session
   const rw = $('recentWrap');
-  if (rw) rw.style.display = sessionSearches.length > 0 ? 'block' : 'none';
+  if (rw) rw.style.display = 'none';
   setTimeout(initContentAnimations, 80);
 }
 
@@ -819,22 +828,8 @@ function addToSession(city, icon) {
 }
 
 function renderRecent() {
-  const wrap  = $('recentWrap');
-  const chips = $('recentChips');
-  if (!wrap || !chips) return;
-  // Only show after a search, never on page load
-  if (!sessionSearches.length || !$('contentPanels').classList.contains('active')) {
-    wrap.style.display = 'none';
-    wrap.classList.remove('active');
-    return;
-  }
-  wrap.style.display = 'block';
-  wrap.classList.add('active');
-  chips.innerHTML = sessionSearches.map(s => `
-    <button class="recent-chip" onclick="triggerSearch('${s.city.replace(/'/g,"\\'")}')">
-      <img src="https://openweathermap.org/img/wn/${s.icon}.png" alt="${s.city}">
-      ${s.city}
-    </button>`).join('');
+  const wrap = $('recentWrap');
+  if (wrap) wrap.style.display = 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -865,7 +860,8 @@ async function triggerSearch(city) {
   if (!city) return;
   if (!navigator.onLine) { showOffline(); return; }
 
-  lastCity = city;
+  lastCity      = city;
+  radarInitDone = false; // reset radar so it re-inits for new location
   syncInputs(city);
   showSkeleton();
   $('scrollHint').classList.add('hidden');
@@ -1697,6 +1693,14 @@ window.showWxTab = function(name) {
   if (name === 'health' && currentWeatherData?.weather) renderHealthTab(currentWeatherData.weather);
   if (name === 'activities' && currentWeatherData?.weather) renderActivitiesTab(currentWeatherData.weather);
   if (name === 'travel' && currentWeatherData?.weather) renderTravelTab(currentWeatherData.weather);
+  if (name === 'radar') {
+    const w = currentWeatherData?.weather;
+    if (!radarInitDone && w) {
+      initRadar(w.coord.lat, w.coord.lon);
+    } else if (radarMap) {
+      setTimeout(() => radarMap.invalidateSize(), 150);
+    }
+  }
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -2075,6 +2079,118 @@ function displayLocalTips(weatherData) {
       <div class="ai-tip-text">${t.tip}</div>
     </div>`).join('');
 }
+
+// ══════════════════════════════════════════════════════════════
+// LIVE RADAR  (RainViewer API + Leaflet)
+// ══════════════════════════════════════════════════════════════
+async function initRadar(lat, lon) {
+  const mapEl = document.getElementById('radarMap');
+  if (!mapEl) return;
+
+  // Remove existing map instance before re-init
+  if (radarMap) {
+    clearInterval(radarAnimTimer);
+    radarPlaying   = false;
+    radarMap.remove();
+    radarMap       = null;
+    radarLayers    = [];
+    radarFrames    = [];
+    radarInitDone  = false;
+    const icon = $('radarPlayIcon');
+    if (icon) icon.className = 'fas fa-play';
+  }
+
+  radarMap = L.map('radarMap', { zoomControl: true, attributionControl: false })
+              .setView([lat, lon], 7);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 18
+  }).addTo(radarMap);
+
+  L.control.attribution({ prefix: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>, CartoDB' })
+    .addTo(radarMap);
+
+  L.circleMarker([lat, lon], {
+    radius: 7, fillColor: '#38bdf8', color: '#fff', weight: 2, fillOpacity: 0.9
+  }).addTo(radarMap);
+
+  await loadRadarFrames();
+  radarInitDone = true;
+}
+
+async function loadRadarFrames() {
+  try {
+    const res  = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const data = await res.json();
+
+    const past    = (data.radar?.past    || []).slice(-6);
+    const nowcast = (data.radar?.nowcast || []).slice(0, 2);
+    radarFrames   = [...past, ...nowcast];
+
+    radarLayers.forEach(l => { try { radarMap.removeLayer(l); } catch(_) {} });
+    radarLayers = [];
+
+    radarFrames.forEach((frame, i) => {
+      const layer = L.tileLayer(
+        `https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_1.png`,
+        { opacity: 0, tileSize: 256, zIndex: 10 + i }
+      );
+      layer.addTo(radarMap);
+      radarLayers.push(layer);
+    });
+
+    // Default: show most-recent past frame
+    showRadarFrame(past.length - 1);
+    renderRadarTimeline();
+  } catch (e) {
+    console.warn('RainViewer load failed:', e.message);
+    const tl = $('radarTimeline');
+    if (tl) tl.innerHTML = '<span style="color:rgba(255,255,255,.4);font-size:.8rem">Radar data unavailable</span>';
+  }
+}
+
+window.showRadarFrame = function(idx) {
+  if (!radarFrames.length) return;
+  idx = Math.max(0, Math.min(idx, radarFrames.length - 1));
+  radarFrameIdx = idx;
+
+  radarLayers.forEach((l, i) => l.setOpacity(i === idx ? 0.65 : 0));
+
+  const frame = radarFrames[idx];
+  const d     = new Date(frame.time * 1000);
+  const label = $('radarTimeLabel');
+  if (label) label.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  document.querySelectorAll('.radar-frame-btn').forEach((btn, i) =>
+    btn.classList.toggle('active', i === idx)
+  );
+};
+
+function renderRadarTimeline() {
+  const tl = $('radarTimeline');
+  if (!tl || !radarFrames.length) return;
+  const pastLen = radarFrames.filter(f => !f.nowcast).length;
+  tl.innerHTML = radarFrames.map((frame, i) => {
+    const d    = new Date(frame.time * 1000);
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const label = i >= pastLen ? `${time} ▶` : time;
+    return `<button class="radar-frame-btn${i === radarFrameIdx ? ' active' : ''}" onclick="showRadarFrame(${i})">${label}</button>`;
+  }).join('');
+}
+
+window.toggleRadarPlay = function() {
+  radarPlaying = !radarPlaying;
+  const icon = $('radarPlayIcon');
+  if (icon) icon.className = radarPlaying ? 'fas fa-pause' : 'fas fa-play';
+  if (radarPlaying) {
+    radarAnimTimer = setInterval(() => {
+      showRadarFrame((radarFrameIdx + 1) % radarFrames.length);
+    }, 800);
+  } else {
+    clearInterval(radarAnimTimer);
+  }
+};
 
 // ══════════════════════════════════════════════════════════════
 // INITIALISE EVERYTHING
